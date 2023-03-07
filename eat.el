@@ -388,7 +388,7 @@ When the cursor is off, CURSOR-OFF is used as `cursor-type'.  This
 should be nil when cursor is not blinking."
   :type eat--cursor-type-value-type
   :group 'eat-ui
-  :group 'eat-ehell)
+  :group 'eat-eshell)
 
 (defcustom eat-invisible-cursor-type '(nil nil nil)
   "Invisible cursor to use in Eat buffer.
@@ -401,7 +401,7 @@ When the cursor is off, CURSOR-OFF is used as `cursor-type'.  This
 should be nil when cursor is not blinking."
   :type eat--cursor-type-value-type
   :group 'eat-ui
-  :group 'eat-ehell)
+  :group 'eat-eshell)
 
 (defcustom eat-very-visible-cursor-type
   `(,(default-value 'cursor-type) 2 hollow)
@@ -412,7 +412,7 @@ When the cursor is invisible, the car of the value is used as
 blinking frequency of cursor."
   :type eat--cursor-type-value-type
   :group 'eat-ui
-  :group 'eat-ehell)
+  :group 'eat-eshell)
 
 (defcustom eat-minimum-latency 0.008
   "Minimum display latency in seconds.
@@ -423,7 +423,7 @@ cause the terminal to feel less responsive.  Try to increase this
 value if the terminal flickers."
   :type 'number
   :group 'eat-ui
-  :group 'eat-ehell)
+  :group 'eat-eshell)
 
 (defcustom eat-maximum-latency 0.033
   "Minimum display latency in seconds.
@@ -434,7 +434,7 @@ terminal flickers.  Try to lower the value if the terminal feels less
 responsive."
   :type 'number
   :group 'eat-ui
-  :group 'eat-ehell)
+  :group 'eat-eshell)
 
 (defcustom eat-term-name #'eat-term-get-suitable-term-name
   "Value for the `TERM' environment variable.
@@ -6031,7 +6031,7 @@ symbol `buffer', in which case the point of current buffer is set."
                           (down-mouse-1 . eat-eshell-semi-char-mode)
                           (down-mouse-3 . eat-eshell-char-mode)))))
                     "]")))))))
-  :group 'eat-ehell
+  :group 'eat-eshell
   (cond
    (eat-eshell-mode
     (let ((buffers nil))

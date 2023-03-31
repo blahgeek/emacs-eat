@@ -121,7 +121,7 @@ terminal and run the default shell
 (@pxref{Interactive Shell,,, emacs, GNU Emacs Manual}) in it.  You
 should get a shell prompt and be able to write shell commands and
 execute them.  Full screen programs like @samp{htop}, @samp{lynx} and
-Emacs will work inside it, just like other any other terminal.  (If
+Emacs will work inside it, just like any other terminal.  (If
 the terminal doesn't work as expected, @pxref{Common Problems}.)
 
 If an Eat terminal already exists, @kbd{M-x eat} will switch to it.

@@ -5792,7 +5792,7 @@ PROGRAM can be a shell command."
           minor-mode-overriding-map-alist)))
 
 (defun eat-eshell-emacs-mode ()
-  "Switch to Emacs keybindings mode."
+  "Run Eat inside Eshell."
   (interactive)
   (eat--eshell-semi-char-mode -1)
   (eat--eshell-char-mode -1)

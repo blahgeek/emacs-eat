@@ -6919,8 +6919,10 @@ N defaults to 1.  Interactively, N is the prefix argument."
   "Reload Eat."
   (interactive)
   (unless eat--being-loaded
-    ;; Remove .elc suffix to load native compiled version if possible.
-    (load (string-remove-suffix ".elc" eat--load-file-path))))
+    ;; prevent infinite recursive load (issue #56)
+    (dlet ((after-load-alist '()))
+      ;; Remove .elc suffix to load native compiled version if possible.
+      (load (string-remove-suffix ".elc" eat--load-file-path)))))
 
 (setq eat--being-loaded nil)
 

@@ -30,7 +30,7 @@ __eat_precmd () {
          "$(printf "%s" "$PWD" | base64)"
   # Update title.
   # "${PWD/$HOME/'~'}" converts "/home/akib/org/" to "~/org/".
-  # The next one is substituted with '$', or '#' if we're "root".
+  # The next one is substituted with '%', or '#' if we're "root".
   printf '\e]2;%s@%s:%s%s\e\\' "$USER" "$HOST" "${PWD/$HOME/~}" \
          "$(test $UID -eq 0 && echo '#' || echo '%')"
 }

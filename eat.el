@@ -5461,10 +5461,10 @@ mouse-3: Switch to char mode"
                 '(" "
                   (:propertize
                    (:eval
-                    (when (and eat--terminal
-                               (not (string-empty-p (eat-term-title
-                                                     eat--terminal))))
-                      (format "(%s)" (eat-term-title eat--terminal))))
+                    (when-let ((eat--terminal)
+                               (title (eat-term-title eat--terminal))
+                               ((not (string-empty-p title))))
+                      (format "(%s)" (string-replace "%" "%%" title))))
                    help-echo "Title"))))))
   (eat-emacs-mode)
   ;; Make sure glyphless character don't display a huge box glyph,

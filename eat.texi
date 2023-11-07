@@ -936,7 +936,7 @@ normal.  Bold text uses the face @code{eat-term-bold}.
 @cindex text, faint
 @vindex eat-term-bold
 Programs may also request the terminal to show some text fainter than
-normal.  Faint text uses the face @code{eat-term-faint}.
+normal.  Faint text uses the face @code{eat-term-italic}.
 
 @cindex italic text
 @cindex slant text

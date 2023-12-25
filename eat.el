@@ -6915,6 +6915,27 @@ of window displaying PROCESS's buffer."
   "Kill current buffer."
   (kill-buffer (current-buffer)))
 
+(defun eat--build-command(command switches width height)
+  "Build command to be executed with args.
+
+COMMAND is going to be run with SWITCHES.  WIDTH and HEIGHT are
+terminal dimensions."
+  (cond
+   ((eq system-type 'windows-nt)
+    `("conhost.exe" "--headless" "--height" ,(number-to-string height)
+      "--width" ,(number-to-string width) "--feature" "pty" ,command
+      ,@switches))
+   (t
+    `("/usr/bin/env" "sh" "-c"
+      ,(format "stty -nl echo rows %d columns \
+  %d sane 2>%s ; if [ $1 = .. ]; then shift; fi; exec \"$@\""
+               height
+               width
+               null-device)
+      ".."
+      ,command
+      ,@switches))))
+
 ;; Adapted from Term.
 (defun eat-exec (buffer name command startfile switches)
   "Start up a process in BUFFER for Eat mode.
@@ -6977,13 +6998,8 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
               (make-process
                :name name
                :buffer buffer
-               :command `("/usr/bin/env" "sh" "-c"
-                          ,(format "stty -nl echo rows %d columns \
-%d sane 2>%s ; if [ $1 = .. ]; then shift; fi; exec \"$@\""
-                                   (cdr size) (car size)
-                                   null-device)
-                          ".."
-                          ,command ,@switches)
+               :command (eat--build-command command switches
+                                            (car size) (cdr size))
                :filter #'eat--filter
                :sentinel #'eat--sentinel
                :file-handler t)))
@@ -7047,25 +7063,30 @@ PROGRAM."
 
 PROGRAM and ARG is same as in `eat' and `eat-other-window'.
 DISPLAY-BUFFER-FN is the function to display the buffer."
-  (let ((program (or program (or explicit-shell-file-name
+  (let* ((program (or program (or explicit-shell-file-name
                                  (getenv "ESHELL")
                                  shell-file-name)))
-        (buffer
-         (cond
-          ((numberp arg)
-           (get-buffer-create (format "%s<%d>" eat-buffer-name arg)))
-          (arg
-           (generate-new-buffer eat-buffer-name))
-          (t
-           (get-buffer-create eat-buffer-name)))))
+         (args
+          (cond
+           ((eq system-type 'windows-nt)
+            `("powershell.exe" nil ("-NoExit" "-c" ,(format "'%s'" program))))
+           (t
+            `("/usr/bin/env" nil (list "sh" "-c" ,program)))))
+         (buffer
+          (cond
+           ((numberp arg)
+            (get-buffer-create (format "%s<%d>" eat-buffer-name arg)))
+           (arg
+            (generate-new-buffer eat-buffer-name))
+           (t
+            (get-buffer-create eat-buffer-name)))))
     (with-current-buffer buffer
       (unless (eq major-mode #'eat-mode)
         (eat-mode))
       (funcall display-buffer-fn buffer)
       (unless (and eat-terminal
                    (eat-term-parameter eat-terminal 'eat--process))
-        (eat-exec buffer (buffer-name) "/usr/bin/env" nil
-                  (list "sh" "-c" program)))
+        (apply #'eat-exec buffer (buffer-name) args))
       buffer)))
 
 ;;;###autoload

@@ -21,7 +21,6 @@
 # Features missing compared to the bash/zsh integrations:
 # - Fish history import into Emacs.
 # - The prompt markers are not portable, they depend on a specific prompt customization.
-# - The _eat_msg function.
 # - The PS2 prompt support (line continuation).
 
 function eat_enable_integration

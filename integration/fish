@@ -66,6 +66,14 @@ function eat_enable_integration
             "$(fish_is_root_user && echo '#' || echo '$')"
     end
 
+    function _eat_msg
+        set msg (printf '\e]51;e;M')
+        for arg in $argv
+            set msg $msg "$(echo -n -- $arg | base64)"
+        end
+        printf "%s\e\\\\" (string join ";" $msg)
+    end
+
     # FIXME: These are custom variables for a modified prompt, not native to Fish.
     set --global --prepend fish_before_prompt \
         (printf '\e]51;e;B\e\\\\')

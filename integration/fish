@@ -24,6 +24,8 @@
 # - The PS2 prompt support (line continuation).
 
 function eat_enable_integration
+    set -g __eat_integration_enabled yes
+
     function __eat_chpwd --on-variable PWD
         # Send the current working directory, for directory tracking.
         printf '\e]51;e;A;%s;%s\e\\\\'         \
@@ -81,6 +83,7 @@ function _eat_msg
 end
 
 if status is-interactive
+    and test -z $__eat_integration_enabled
     and set -q EAT_SHELL_INTEGRATION_DIR
     and string match -q "eat-*" $TERM
 

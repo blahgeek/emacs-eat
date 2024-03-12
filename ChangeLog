@@ -1,3 +1,10 @@
+2024-03-12  Hugo Heagren   <hugo@heagren.com>
+        Rename eat-exit-hook to eat-exit-functions
+
+        * eat.el (eat-update-hook, eat--sentinel, eat-exec): rename
+        `eat-exit-hook' to `eat-exit-functions' since it runs with arguments,
+        and such hooks are conventionally named this way.
+
 2023-12-15  Akib Azmain Turja  <akib@disroot.org>
 
 	Don't let automatic scrolling mess up the display

@@ -489,8 +489,8 @@ argument."
   :type 'hook
   :group 'eat-ui)
 
-(defcustom eat-exit-hook nil
-  "Hook run after the command executed by `eat' exits.
+(defcustom eat-exit-functions nil
+  "Abnormal hook run after the command executed by `eat' exits.
 
 The hook is run with the process that just exited as the only
 argument."
@@ -6908,7 +6908,7 @@ to it."
               (insert "\nProcess " (process-name process) " "
                       message)
               (setq buffer-read-only nil))
-            (run-hook-with-args 'eat-exit-hook process)
+            (run-hook-with-args 'eat-exit-functions process)
             (delete-process process))
         (set-process-buffer process nil)))))
 
@@ -6951,7 +6951,7 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
       (when-let* ((eat-terminal)
                   (proc (eat-term-parameter
                          eat-terminal 'eat--process)))
-        (remove-hook 'eat-exit-hook #'eat--kill-buffer t)
+        (remove-hook 'eat-exit-functions #'eat--kill-buffer t)
         (delete-process proc))
       ;; Ensure final newline.
       (goto-char (point-max))
@@ -7024,7 +7024,7 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
         (setf (eat-term-parameter eat-terminal 'eat--output-process)
               process)
         (when eat-kill-buffer-on-exit
-          (add-hook 'eat-exit-hook #'eat--kill-buffer 90 t))
+          (add-hook 'eat-exit-functions #'eat--kill-buffer 90 t))
         ;; Feed it the startfile.
         (when startfile
           ;; This is guaranteed to wait long enough

@@ -3358,6 +3358,15 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
          ('(2004)
           (eat--t-disable-bracketed-yank)))))))
 
+(defun eat--parse-osc8-params (params-string)
+  "Parse PARAMS-STRING as OSC8 params."
+  (let ((splits (split-string params-string "[:=]" t))
+        params)
+    (while splits
+      (push (cons (pop splits) (pop splits))
+            params))
+    params))
+
 (defun eat--t-handle-output (output)
   "Parse and evaluate OUTPUT."
   (let ((index 0))

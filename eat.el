@@ -3367,6 +3367,16 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
             params))
     params))
 
+(defun eat--t-begin-hyperlink (params-string uri)
+  "Set state in the terminal's face to reflect a hyperlink.
+
+Gets the `eat--t-term-face' for the current terminal, parses
+PARAMS-STRING, then sets the \"hyperlink-params\" slot to the parsed result, and the \"hyperlink-uri\" slot to URI."
+  (let ((face (eat--t-term-face eat--t-term))
+        (parsed-params (eat--parse-osc8-params params-string)))
+    (setf (eat--t-face-hyperlink-params face) parsed-params
+          (eat--t-face-hyperlink-uri face) uri)))
+
 (defun eat--t-handle-output (output)
   "Parse and evaluate OUTPUT."
   (let ((index 0))

@@ -1134,7 +1134,9 @@ For example: when THRESHOLD is 3, \"*foobarbaz\" is converted to
   (conceal nil :documentation "Non-nil means invisible text.")
   (inverse nil :documentation "Non-nil means inverse colors.")
   (blink nil :documentation "Blink face, or nil.")
-  (font 'eat-term-font-0 :documentation "Current font face."))
+  (font 'eat-term-font-0 :documentation "Current font face.")
+  (hyperlink-uri nil :documentation "URI for OSC8 hyperlink.")
+  (hyperlink-params nil :documentation "Params for OSC8 hyperlink."))
 
 (cl-defstruct (eat--t-term
                (:constructor eat--t-make-term)

@@ -776,6 +776,9 @@ If your process is choking on big inputs, try lowering the value."
   :type 'integer
   :group 'eat-ui)
 
+(defface eat-term-hyperlink '((t :inherit link))
+  "Face used to render hyperlinks.")
+
 (defface eat-term-bold '((t :inherit bold))
   "Face used to render bold text."
   :group 'eat-term)

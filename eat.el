@@ -776,6 +776,17 @@ If your process is choking on big inputs, try lowering the value."
   :type 'integer
   :group 'eat-ui)
 
+(defcustom eat-open-hyperlink-function #'find-file
+  "Function for opening hyperlinks.
+
+Passed the URI of the hyperlink as sole argument. This function
+is used as the value of the `action' property when SOC8
+hyperlinks are rendered as clickable. The URI is used as the
+value of the `button-data' property and so is passed as the sole
+argent to the action, when the button is clicked."
+  :type 'function
+  :group 'eat-ui)
+
 (defface eat-term-hyperlink '((t :inherit link))
   "Face used to render hyperlinks.")
 

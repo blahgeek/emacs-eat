@@ -1785,9 +1785,29 @@ character to actually show.")
                                  eat--t-dec-line-drawing-chars)))
                           (aset s i r)))))
                    ;; Add face.
-                   (put-text-property 0 (length s) 'face face s)
-                   (put-text-property
-                    0 (length s) 'font-lock-face face s)
+                   (add-text-properties
+                    0 (length s)
+                    `(face ,face
+                           font-lock-face ,face
+                           ;; Only include button properties with a non-empty URI
+                           ,@(when-let ((uri (eat--t-face-hyperlink-uri
+                                              ;; TODO Is there a quicker way of
+                                              ;; getting this?
+                                              (eat--t-term-face eat--t-term))))
+                               (list
+                                ;; Undocumented, but without `category',
+                                ;; the button doesn't work
+                                'category t
+                                'mouse-face 'eat-term-mouse
+                                'follow-link t
+                                'button t
+                                'keymap button-map
+                                'button-data uri
+                                'action eat-open-hyperlink-function
+                                ;; Add the hyperlink face to the previous faces
+                                'face `(eat-term-hyperlink ,face)
+                                'font-lock-face `(eat-term-hyperlink ,face))))
+                    s)
                    (insert s))
                  (setq inserted-till e)
                  (if (or (null next-multi-col)

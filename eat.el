@@ -3749,6 +3749,17 @@ PARAMS-STRING, then sets the \"hyperlink-params\" slot to the parsed result, and
                            (let url (zero-or-more anything))
                            string-end)
                        (eat--t-set-cwd url))
+                      ;; OSC 8 ; [params] ; URI ST
+                      ((rx string-start ?8 ?\;
+                          (let params (zero-or-more anything)) ;; params
+                          ?\; ;; delimiter
+                          (let uri (zero-or-more anything)) ;; uri
+                          string-end)
+                       (if (string-empty-p uri)
+                           ;; If URI is empty, end hyperlink
+                           (eat--t-end-hyperlink)
+                         ;; If URI is non-empty, set the relevant state.
+                         (eat--t-begin-hyperlink params uri)))
                       ;; OSC 1 0 ; ? ST.
                       ("10;?"
                        (eat--t-report-foreground-color))

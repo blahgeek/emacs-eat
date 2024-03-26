@@ -3377,6 +3377,12 @@ PARAMS-STRING, then sets the \"hyperlink-params\" slot to the parsed result, and
     (setf (eat--t-face-hyperlink-params face) parsed-params
           (eat--t-face-hyperlink-uri face) uri)))
 
+(defun eat--t-end-hyperlink ()
+  "Set hyperlink URI and params slots in term face to nil."
+  (let ((face (eat--t-term-face eat--t-term)))
+    (setf (eat--t-face-hyperlink-params face) nil
+          (eat--t-face-hyperlink-uri face) nil)))
+
 (defun eat--t-handle-output (output)
   "Parse and evaluate OUTPUT."
   (let ((index 0))

@@ -6539,7 +6539,7 @@ buffer."
          (or (and force-selected (eq window (selected-window)))
              (= (eat-term-display-cursor eat-terminal)
                 (window-point window))))
-       (get-buffer-window-list))))
+       (get-buffer-window-list nil nil t))))
 
 (defun eat--synchronize-scroll (windows)
   "Synchronize scrolling and point between terminal and WINDOWS.

@@ -91,6 +91,7 @@
 (require 'url)
 (require 'tramp)
 (require 'term/xterm)
+(require 'bookmark)
 
 ;; Needed by `eat-reload'.
 (defvar eat--being-loaded nil
@@ -138,6 +139,12 @@ Each element of form (TRAMP-METHOD . SHELL), where SHELL corresponds
 to the default shell for remote directories using TRAMP-METHOD."
   :type '(alist :key-type string :value-type string)
   :group 'eat-ui)
+
+(defcustom eat-bookmark-check-dir t
+  "When set to non-nil, also restore directory when restoring a eat bookmark."
+  :type 'boolean
+  :group 'eat)
+
 
 (defcustom eat-buffer-name "*eat*"
   "The basename used for Eat buffers.
@@ -6716,6 +6723,7 @@ mouse-3: Switch to char mode"
                       (format "(%s)" (string-replace "%" "%%"
                                                      title))))
                    help-echo "Title"))))))
+  (setq-local bookmark-make-record-function 'eat--bookmark-make-record)
   (eat-emacs-mode)
   ;; Make sure glyphless character don't display a huge box glyph,
   ;; that would break the display.
@@ -6743,6 +6751,41 @@ mouse-3: Switch to char mode"
       (set-window-buffer win (current-buffer)))))
 
 
+(defun eat--bookmark-make-record ()
+  "Create a eat bookmark.
+Notes down the current directory and buffer name."
+  `(nil
+    (handler . eat--bookmark-handler)
+    (thisdir . ,default-directory)
+    (buf-name . ,(buffer-name))
+    (defaults . nil)))
+
+;;;###autoload
+(defun eat--bookmark-handler (bmk)
+  "Handler to restore a eat bookmark BMK.
+
+If a eat buffer of the same name does not exist, the function will create a
+new eat buffer of the name. It also checks the current directory and sets
+it to the bookmarked directory if needed."
+  (let* ((thisdir (bookmark-prop-get bmk 'thisdir))
+         (buf-name (bookmark-prop-get bmk 'buf-name))
+         (buf (get-buffer buf-name))
+         (thismode (and buf (with-current-buffer buf major-mode))))
+    ;; create if no such eat buffer exists
+    (message "elvis was here")
+    (when (or (not buf) (not (eq thismode 'eat-mode)))
+      (eat))
+    ;; check the current directory
+    (with-current-buffer (get-buffer buf-name)
+      (when (and 't 
+                 (not (string-equal default-directory thisdir)))
+        (when eat-bookmark-check-dir
+            (eat--send-input "" (concat "cd " thisdir))
+            (eat-line-send)
+            (setq default-directory thisdir))))
+    ;; set to this eat buf
+    (set-buffer (get-buffer buf-name))))
+
 ;;;;; Process Handling.
 
 (defvar eat--pending-output-chunks nil

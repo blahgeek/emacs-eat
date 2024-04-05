@@ -6772,17 +6772,15 @@ it to the bookmarked directory if needed."
          (buf (get-buffer buf-name))
          (thismode (and buf (with-current-buffer buf major-mode))))
     ;; create if no such eat buffer exists
-    (message "elvis was here")
     (when (or (not buf) (not (eq thismode 'eat-mode)))
       (eat))
     ;; check the current directory
     (with-current-buffer (get-buffer buf-name)
-      (when (and 't 
+      (when (and eat-bookmark-check-dir
                  (not (string-equal default-directory thisdir)))
-        (when eat-bookmark-check-dir
-            (eat--send-input "" (concat "cd " thisdir))
-            (eat-line-send)
-            (setq default-directory thisdir))))
+        (eat--send-input "" (concat "cd " thisdir))
+        (eat-line-send)
+        (setq default-directory thisdir)))
     ;; set to this eat buf
     (set-buffer (get-buffer buf-name))))
 

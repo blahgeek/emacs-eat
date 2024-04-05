@@ -146,6 +146,17 @@ to the default shell for remote directories using TRAMP-METHOD."
   :group 'eat)
 
 
+(defcustom eat-bookmark-proc-wait-time 2
+  "Maximum time to wait for shell process to become ready before trying to adjust path."
+  :type 'float
+  :group 'eat)
+
+(defcustom eat-bookmark-proc-wait-grace-time 0.2
+  "Maximum time to wait in additon to the wait for process to be ready"
+  :type 'float
+  :group 'eat)
+
+
 (defcustom eat-buffer-name "*eat*"
   "The basename used for Eat buffers.
 
@@ -6777,12 +6788,53 @@ it to the bookmarked directory if needed."
     ;; check the current directory
     (with-current-buffer (get-buffer buf-name)
       (when (and eat-bookmark-check-dir
-                 (not (string-equal default-directory thisdir)))
-        (eat--send-input "" (concat "cd " thisdir))
-        (eat-line-send)
-        (setq default-directory thisdir)))
+                 (not (string-equal default-directory (file-name-as-directory thisdir))))
+        (when (not buf)
+          (if (eat--wait-for-buffer-process-to-become-ready eat-bookmark-proc-wait-time)
+              (sleep-for eat-bookmark-proc-wait-grace-time)
+            (message "Process not ready or no process started.")))
+        (eat--send-input "" (concat "cd " thisdir "\n")))
+        (setq default-directory thisdir))
     ;; set to this eat buf
     (set-buffer (get-buffer buf-name))))
+
+(defun eat--wait-for-buffer-process-to-become-ready (timeout)
+  "Wait for the current buffer's process to start and become ready for up to TIMEOUT seconds.
+A process is considered ready if it produces no output for a short interval.
+Returns t if the process seems ready, nil if the timeout is reached first."
+  (let ((start-time (current-time))
+        (process (get-buffer-process (current-buffer)))
+        (quiet-interval 0.1)
+        last-output-time
+        (end-time (time-add (current-time) (seconds-to-time timeout)))
+        (original-filter (process-filter (get-buffer-process (current-buffer)))))
+
+    ;; Wait for a process to be associated with the current buffer
+    (while (and (not process)
+                (time-less-p (current-time) end-time))
+      (setq process (get-buffer-process (current-buffer)))
+      (sleep-for quiet-interval))
+
+    ;; Once we have a process, wait for it to become ready
+    (when process
+      (setq last-output-time (current-time))
+      (set-process-filter process (lambda (proc string)
+                                    (funcall original-filter proc string)
+                                    (setq last-output-time (current-time))))
+
+      (while (and (process-live-p process)
+                  (time-less-p (current-time) end-time)
+                  (or (not last-output-time)
+                      (time-less-p (time-subtract (current-time) last-output-time)
+                                   (seconds-to-time quiet-interval))))
+        (accept-process-output process 0.1))
+
+
+      (set-process-filter process original-filter)
+      (and (process-live-p process)
+           last-output-time
+           (not (time-less-p end-time (current-time)))))))
+
 
 ;;;;; Process Handling.
 

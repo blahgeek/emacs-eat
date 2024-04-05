@@ -145,7 +145,6 @@ to the default shell for remote directories using TRAMP-METHOD."
   :type 'boolean
   :group 'eat)
 
-
 (defcustom eat-bookmark-proc-wait-time 2
   "Maximum time to wait for shell process to become ready before trying to adjust path."
   :type 'float
@@ -155,7 +154,6 @@ to the default shell for remote directories using TRAMP-METHOD."
   "Maximum time to wait in additon to the wait for process to be ready"
   :type 'float
   :group 'eat)
-
 
 (defcustom eat-buffer-name "*eat*"
   "The basename used for Eat buffers.
@@ -6821,14 +6819,12 @@ Returns t if the process seems ready, nil if the timeout is reached first."
       (set-process-filter process (lambda (proc string)
                                     (funcall original-filter proc string)
                                     (setq last-output-time (current-time))))
-
       (while (and (process-live-p process)
                   (time-less-p (current-time) end-time)
                   (or (not last-output-time)
                       (time-less-p (time-subtract (current-time) last-output-time)
                                    (seconds-to-time quiet-interval))))
         (accept-process-output process 0.1))
-
 
       (set-process-filter process original-filter)
       (and (process-live-p process)

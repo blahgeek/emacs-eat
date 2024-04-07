@@ -6788,9 +6788,8 @@ it to the bookmarked directory if needed."
       (when (and eat-bookmark-check-dir
                  (not (string-equal default-directory (file-name-as-directory thisdir))))
         (when (not buf)
-          (if (eat--wait-for-buffer-process-to-become-ready eat-bookmark-proc-wait-time)
-              (sleep-for eat-bookmark-proc-wait-grace-time)
-            (message "Process not ready or no process started.")))
+          (if (not (eat--wait-for-buffer-process-to-become-ready eat-bookmark-proc-wait-time))
+              (message "Process not ready or no process started.")))
         (eat--send-input "" (concat "cd " thisdir "\n")))
         (setq default-directory thisdir))
     ;; set to this eat buf
@@ -6827,6 +6826,7 @@ Returns t if the process seems ready, nil if the timeout is reached first."
         (accept-process-output process 0.1))
 
       (set-process-filter process original-filter)
+      (sleep-for eat-bookmark-proc-wait-grace-time)
       (and (process-live-p process)
            last-output-time
            (not (time-less-p end-time (current-time)))))))

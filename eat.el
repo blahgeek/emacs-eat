@@ -151,7 +151,7 @@ to the default shell for remote directories using TRAMP-METHOD."
   :group 'eat)
 
 (defcustom eat-bookmark-proc-wait-grace-time 0.2
-  "Maximum time to wait in additon to the wait for process to be ready"
+  "Time to wait in addition to the `eat-bookmark-proc-wait-time' before sending input"
   :type 'float
   :group 'eat)
 

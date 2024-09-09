@@ -91,6 +91,7 @@
 (require 'url)
 (require 'tramp)
 (require 'term/xterm)
+(require 'easymenu)
 
 ;; Needed by `eat-reload'.
 (defvar eat--being-loaded nil
@@ -5967,6 +5968,26 @@ MODE should one of:
      (eat--mouse-click-mode -1)
      (eat--mouse-modifier-click-mode -1)
      (eat--mouse-movement-mode -1))))
+
+(easy-menu-define eat-mode-menu eat-mode-map
+  "Menu for eat-mode."
+  '("Eat"
+    ["Semi-Char Mode" eat-semi-char-mode
+     :style radio
+     :selected eat--semi-char-mode]
+    ["Char Mode" eat-char-mode
+     :style radio
+     :selected eat--char-mode]
+    ["Line Mode" eat-line-mode
+     :style radio
+     :selected eat--line-mode]
+    ["Emacs Mode" eat-emacs-mode
+     :style radio
+     :selected (not (or eat--semi-char-mode eat--char-mode eat--line-mode))]
+    "---"
+    ["Reset Terminal" eat-reset]
+    ["(Re-)Compile Terminfo" eat-compile-terminfo]
+    ["Kill Process" eat-kill-process]))
 
 
 ;;;;; Line Mode.

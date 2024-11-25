@@ -3558,10 +3558,10 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
                   (eat--t-cur-left n))
                  ;; CSI <n> E.
                  (`((?E) nil ((,n)))
-                  (eat--t-beg-of-prev-line n))
+                  (eat--t-beg-of-next-line n))
                  ;; CSI <n> F.
                  (`((?F) nil ((,n)))
-                  (eat--t-beg-of-next-line n))
+                  (eat--t-beg-of-prev-line n))
                  ;; CSI <n> G.
                  ;; CSI <n> `.
                  (`((,(or ?G ?`)) nil ((,n)))

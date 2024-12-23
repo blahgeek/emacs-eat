@@ -6936,7 +6936,7 @@ of window displaying PROCESS's buffer."
 
 (defun eat--kill-buffer (_process)
   "Kill current buffer."
-  (kill-buffer (current-buffer)))
+  (quit-window t))
 
 ;; Adapted from Term.
 (defun eat-exec (buffer name command startfile switches)

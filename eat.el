@@ -7086,15 +7086,14 @@ DISPLAY-BUFFER-FN is the function to display the buffer."
            (generate-new-buffer eat-buffer-name))
           (t
            (get-buffer-create eat-buffer-name)))))
-    (with-current-buffer buffer
-      (unless (eq major-mode #'eat-mode)
-        (eat-mode))
-      (funcall display-buffer-fn buffer)
-      (unless (and eat-terminal
-                   (eat-term-parameter eat-terminal 'eat--process))
-        (eat-exec buffer (buffer-name) "/usr/bin/env" nil
-                  (list "sh" "-c" program)))
-      buffer)))
+    (funcall display-buffer-fn buffer)
+    (unless (eq major-mode #'eat-mode)
+      (eat-mode))
+    (unless (and eat-terminal
+                 (eat-term-parameter eat-terminal 'eat--process))
+      (eat-exec buffer (buffer-name) "/usr/bin/env" nil
+                (list "sh" "-c" program)))
+    buffer))
 
 ;;;###autoload
 (defun eat (&optional program arg)

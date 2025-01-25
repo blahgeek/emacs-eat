@@ -20,7 +20,6 @@
 
 # Features missing compared to the bash/zsh integrations:
 # - Fish history import into Emacs.
-# - The prompt markers are not portable, they depend on a specific prompt customization.
 # - The PS2 prompt support (line continuation).
 
 function eat_enable_integration
@@ -67,11 +66,12 @@ function eat_enable_integration
             "$(fish_is_root_user && echo '#' || echo '$')"
     end
 
-    # FIXME: These are custom variables for a modified prompt, not native to Fish.
-    set --global --prepend fish_before_prompt \
-        (printf '\e]51;e;B\e\\\\')
-    set --global --append  fish_after_prompt  \
-        (printf '\e]51;e;C\e\\\\')
+    functions --copy fish_prompt __eat_original_fish_prompt
+    function fish_prompt
+        printf '\e]51;e;B\e\\\\'
+        __eat_original_fish_prompt $argv
+        printf '\e]51;e;C\e\\\\'
+    end
 end
 
 function _eat_msg

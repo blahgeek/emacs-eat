@@ -166,6 +166,11 @@ flickers like Term, so despite being much faster that Eat, it seems to
 be slow.  If you need your terminal to handle huge bursts (megabytes)
 of data, you should use Vterm.
 
+A bug in emacs-vterm causes non-recoverable truncation of the terminal
+buffer content when the window is resized, as in [[issue
+#179][https://github.com/akermu/emacs-libvterm/issues/179]. However,
+Eat does not have this problem.
+
 ** Coterm + Shell
 
 Coterm adds terminal emulation to Shell mode.  Although the terminal

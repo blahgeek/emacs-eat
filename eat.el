@@ -7794,7 +7794,10 @@ allowed."
   (require 'esh-util)
   (let* ((eshell-interpreter-alist nil)
          (interp (eshell-find-interpreter (car args) (cdr args)))
-         (program (car interp))
+         (program (if (tramp-tramp-file-p default-directory)
+                      (tramp-file-name-localname
+                       (tramp-dissect-file-name (car interp)))
+                      (car interp)))
          (args (flatten-tree
                 (eshell-stringify-list (append (cdr interp)
                                                (cdr args)))))

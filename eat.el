@@ -5808,6 +5808,7 @@ EVENT is the mouse event."
                 ,@eat-semi-char-non-bound-keys))))
     (define-key map [?\C-q] #'eat-quoted-input)
     (define-key map [?\C-y] #'eat-yank)
+    (define-key map [?\s-v] #'eat-yank)
     (define-key map [?\M-y] #'eat-yank-from-kill-ring)
     (define-key map [?\C-c ?\C-c] #'eat-self-input)
     (define-key map [?\C-c ?\C-e] #'eat-emacs-mode)

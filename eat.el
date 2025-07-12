@@ -1728,24 +1728,28 @@ character to actually show.")
     (eat--t-make-pos-safe)
     ;; TODO: Comment.
     ;; REVIEW: This probably needs to be updated.
+
+    ;; start, inserted-till, end are the indices of the string, not column width
     (while (< inserted-till end)
       ;; Insert STR, and record the width of STR inserted
       ;; successfully.
       (let ((ins-count
+             ;; max, written, wrote and the return value (ins-count) are in column width, not string length
              (named-let write
+                 ;; max: max remaining number of columns available for writing in this line
                  ((max (min (- (eat--t-disp-width disp)
-                               (1- (eat--t-cur-x cursor)))
-                            (+ (- end inserted-till)
-                               (cl-loop
-                                for p in multi-col-char-indices
-                                sum (1- (cdr p))))))
+                                     (1- (eat--t-cur-x cursor)))
+                                  (+ (- end inserted-till)
+                                     (cl-loop
+                                      for p in multi-col-char-indices
+                                      sum (1- (cdr p))))))
                   (written 0))
                (let* ((next-multi-col (car multi-col-char-indices))
-                      (end (+ inserted-till max))
+                      ;; e: the end index of the string to write, before next multi-col-char
+                      (e-without-considering-multi-col (+ max inserted-till))
                       (e (if next-multi-col
-                             ;; Exclude the multi-column character.
-                             (min (car next-multi-col) end)
-                           end))
+                             (min (car next-multi-col) e-without-considering-multi-col)
+                           e-without-considering-multi-col))
                       (wrote (- e inserted-till)))
                  (cl-assert (>= wrote 0))
                  (let ((s (substring str inserted-till e)))
@@ -1776,10 +1780,10 @@ character to actually show.")
                    (insert s))
                  (setq inserted-till e)
                  (if (or (null next-multi-col)
-                         (< (- end e) (cdr next-multi-col)))
+                         (< (- max wrote) (cdr next-multi-col)))
                      ;; Either everything is done, or we reached
                      ;; the limit.
-                     (+ written wrote)
+                     (+ written max)
                    ;; There are many characters which are too
                    ;; narrow for `char-width' to return 1.  XTerm,
                    ;; Kitty and St seems to ignore them, so we too.

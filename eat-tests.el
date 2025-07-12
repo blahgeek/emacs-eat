@@ -315,6 +315,26 @@ margin."
     (should-term :display '("some test string    ")
                  :cursor '(1 . 17))))
 
+(ert-deftest eat-test-plain-text-double-width ()
+  "Test plain double-width text handling."
+  (eat--tests-with-term '(:width 10)
+    (output (make-string 6 ?🐶))
+    (should-term :display '(" 🐶 🐶 🐶 🐶 🐶"
+                            " 🐶        ")
+                 :cursor '(2 . 3)))
+  (eat--tests-with-term '(:width 10)
+    (output (concat "x" (make-string 6 ?🐶)))
+    (should-term :display '("x 🐶 🐶 🐶 🐶 "
+                            " 🐶 🐶      ")
+                 :cursor '(2 . 5)))
+  (eat--tests-with-term '(:width 10)
+    (output "x🐶x🐶x🐶x🐶x🐶x🐶x🐶x🐶")
+    (should-term :display '("x 🐶x 🐶x 🐶x"
+                            " 🐶x 🐶x 🐶x "
+                            " 🐶x 🐶")
+                 :cursor '(3 . 6)))
+  )
+
 (ert-deftest eat-test-auto-margin ()
   "Test automatic margin and toggling it."
   (eat--tests-with-term '()

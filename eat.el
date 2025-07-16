@@ -707,6 +707,15 @@ that describe the capabilities of the terminal."
     :type 'directory
     :group 'eat-term)
 
+  (defcustom eat-remote-term-terminfo-directory
+    "~/.emacs.d/etc/eat/terminfo"
+    "Directory where required terminfo databases can be found on remote hosts.
+
+This value is used by terminal programs to find the terminfo databases
+that describe the capabilities of the terminal."
+    :type 'string
+    :group 'eat-term)
+
   (defcustom eat-term-shell-integration-directory
     eat--shell-integration-path
     "Directory where Eat shell integration scripts can be found.
@@ -6990,12 +6999,24 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
             #'eat--handle-uic)
       (eat--set-term-sixel-params)
       ;; Crank up a new process.
-      (let* ((size (eat-term-size eat-terminal))
+      (let* ((terminfo-dir
+              (if (file-remote-p default-directory)
+                  (let ((remote-dir (expand-file-name
+                                     (concat (file-remote-p default-directory)
+                                             eat-remote-term-terminfo-directory))))
+                    (unless (file-exists-p
+                             (file-name-concat remote-dir "e/eat-truecolor"))
+                      (message "Eat: terminfo files not found on remote. Copying...")
+                      (copy-directory eat-term-terminfo-directory remote-dir t t t)
+                      (message "Eat: terminfo files not found on remote. Copying...done"))
+                    (tramp-file-local-name remote-dir))
+                eat-term-terminfo-directory))
+             (size (eat-term-size eat-terminal))
              (process-environment
               (nconc
                (list
                 (concat "TERM=" (eat-term-name))
-                (concat "TERMINFO=" eat-term-terminfo-directory)
+                (concat "TERMINFO=" terminfo-dir)
                 (concat "INSIDE_EMACS=" eat-term-inside-emacs)
                 (concat "EAT_SHELL_INTEGRATION_DIR="
                         eat-term-shell-integration-directory))

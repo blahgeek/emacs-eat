@@ -3657,10 +3657,10 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
                   (eat--t-change-scroll-region (caadr params)
                                                (caar params)))
                  ;; CSI s.
-                 (`((?s) nil nil)
+                 (`((?s) nil ,_)
                   (eat--t-save-cur))
                  ;; CSI u.
-                 (`((?u) nil nil)
+                 (`((?u) nil ,_)
                   (eat--t-restore-cur)))))))
         (`(,(and (or 'read-sos 'read-osc 'read-pm 'read-apc) state)
            ,buf)

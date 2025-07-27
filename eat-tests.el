@@ -5747,7 +5747,25 @@ Write plain text and newline to move cursor."
     (output "\e8")
     (should-term :display '("foobar"
                             "frob")
-                 :cursor '(1 . 4))))
+                 :cursor '(1 . 4))
+    (output "baz")
+    (should-term :display '("foobaz"
+                            "frob")
+                 :cursor '(1 . 7))
+    (output "\e[s")
+    (should-term :display '("foobaz"
+                            "frob")
+                 :cursor '(1 . 7))
+    (output "\nbla")
+    (should-term :display '("foobaz"
+                            "bla"
+                            "frob")
+                 :cursor '(2 . 4))
+    (output "\e[u")
+    (should-term :display '("foobaz"
+                            "bla"
+                            "frob")
+                 :cursor '(1 . 7))))
 
 (ert-deftest eat-test-set-cwd ()
   "Test setting current working directory."

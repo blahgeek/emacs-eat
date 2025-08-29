@@ -4035,6 +4035,7 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
         (save-restriction
           (narrow-to-region (eat--t-term-begin eat--t-term)
                             (eat--t-term-end eat--t-term))
+          (eat--t-disable-alt-disp)
           (eat--t-set-cursor-state :default)
           ;; Go to the beginning of display.
           (goto-char (eat--t-disp-begin

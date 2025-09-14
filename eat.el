@@ -3882,7 +3882,7 @@ If NULLIFY is non-nil, nullify flushed part of Sixel buffer."
                   ;; ESC * B.
                   ;; ESC + B.
                   ("B" 'us-ascii)))))))
-        (`(read-charset-vt300 ,_slot)
+        (`(read-charset-vt300 ,_slot ,_buf)
          (cl-incf index)
          (setf (eat--t-term-parser-state eat--t-term) nil)
          ;; Nothing.  This is here to just recognize the sequence.

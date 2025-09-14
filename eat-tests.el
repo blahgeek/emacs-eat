@@ -5770,6 +5770,14 @@ Write plain text and newline to move cursor."
       (should (string= cwd "/bar/baz/"))
       (should-term :cursor '(1 . 1)))))
 
+(ert-deftest eat-test-handle-vt300-escape ()
+  "Test escape sequences about read-chatset-vt300."
+  (eat--tests-with-term '()
+    (output "hello\e-. world\e..")
+    (should-term
+     :display '("hello world         ")
+     :cursor '(1 . 12))))
+
 
 ;;;;; Input Event Tests.
 

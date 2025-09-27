@@ -8,6 +8,7 @@ Apparently the original author has been inactive since about Feb 2025. I use EAT
 
 Goal of the fork: **No new features, only bug fixes**
 
+Here's the list of changes: [compare](https://github.com/blahgeek/emacs-eat/compare/master...dev)
 
 Credits to the original author @AkibAzmain, and following patches:
 

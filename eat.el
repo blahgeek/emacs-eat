@@ -3956,26 +3956,6 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
 
 ;;;;; Entry Points.
 
-(defun eat-make (name program &optional startfile &rest switches)
-  "Make a Eat process NAME in a buffer, running PROGRAM.
-
-The name of the buffer is made by surrounding NAME with `*'s.  If
-there is already a running process in that buffer, it is not
-restarted.  Optional third arg STARTFILE is the name of a file to send
-the contents of to the process.  SWITCHES are the arguments to
-PROGRAM."
-  (let ((buffer (get-buffer-create (concat "*" name "*"))))
-    ;; If no process, or nuked process, crank up a new one and put
-    ;; buffer in Eat mode.  Otherwise, leave buffer and existing
-    ;; process alone.
-    (when (not (let ((proc (get-buffer-process buffer)))
-                 (and proc (memq (process-status proc)
-                                 '(run stop open listen connect)))))
-      (with-current-buffer buffer
-        (eat-mode))
-      (eat-exec buffer name program startfile switches))
-    buffer))
-
 (defun eat-default-shell ()
   "Return a shell to run."
   (or (and (file-remote-p default-directory)

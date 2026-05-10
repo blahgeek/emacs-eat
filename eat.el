@@ -65,12 +65,6 @@
 (require 'tramp)
 (require 'term/xterm)
 
-;; Needed by `eat-reload'.
-(defvar eat--being-loaded nil
-  "Non-nil means Eat is being loaded.")
-
-(setq eat--being-loaded t)
-
 
 ;;;; User Options.
 
@@ -4605,15 +4599,6 @@ PROGRAM can be a shell command."
 
 
 ;;;; Footer.
-
-(defun eat-reload ()
-  "Reload Eat."
-  (interactive)
-  (unless eat--being-loaded
-    ;; Remove .elc suffix to load native compiled version if possible.
-    (load (string-remove-suffix ".elc" eat--load-file-path))))
-
-(setq eat--being-loaded nil)
 
 (provide 'eat)
 ;;; eat.el ends here

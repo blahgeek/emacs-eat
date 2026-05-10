@@ -125,22 +125,6 @@ This is the default name used when running Eat."
   :group 'eat-term
   :group 'eat-ui)
 
-(defcustom eat-enable-kill-from-terminal t
-  "Non-nil means allow terminal program to add text to `kill-ring'.
-
-When non-nil, terminal program can send special escape sequence to add
-some text to `kill-ring'."
-  :type 'boolean
-  :group 'eat-ui)
-
-(defcustom eat-enable-yank-to-terminal nil
-  "Non-nil means allow terminal program to get text from `kill-ring'.
-
-When non-nil, terminal program can get killed text from `kill-ring'.
-This is left disabled for security reasons."
-  :type 'boolean
-  :group 'eat-ui)
-
 (defcustom eat-query-before-killing-running-terminal t
   "Whether to query before killing a running terminal."
   :type 'boolean
@@ -2121,92 +2105,6 @@ FORMAT is the format of parameters in output.  N should be zero."
      (format "\e]11;rgb:%04x/%04x/%04x\e\\"
              (pop rgb) (pop rgb) (pop rgb)))))
 
-(defun eat--t-manipulate-selection (targets data)
-  "Set and send current selection.
-
-TARGETS is a string containing zero or more characters from the set
-`c', `p', `q', `s', `0', `1', `2', `3', `4', `5', `6', and `7'.  DATA
-is the selection data encoded in base64."
-  (when (string-empty-p targets)
-    (setq targets "s0"))
-  (if (string= data "?")
-      ;; The client is requesting for clipboard content, let's try to
-      ;; fulfill the request.
-      (eat--send-input eat--t-term
-       (let ((str nil)
-             (n 0))
-         ;; Remove invalid and duplicate targets from TARGETS before
-         ;; processing it and sending it back.
-         (setq targets
-               (apply #'string
-                      (cl-delete-duplicates
-                       (cl-delete-if-not
-                        (lambda (c) (or (<= ?0 c ?7)
-                                        (memq c '(?c ?p ?q ?s))))
-                        (string-to-list targets)))))
-         (while (and (not str) (< n (length targets)))
-           (setq
-            str
-            (pcase (aref targets n)
-              ;; c, p, q and s targets are handled by the UI, and they
-              ;; might refuse to give the clipboard content.
-              (?c
-               (funcall
-                #'eat--manipulate-kill-ring
-                eat--t-term :clipboard t))
-              (?p
-               (funcall
-                #'eat--manipulate-kill-ring
-                eat--t-term :primary t))
-              (?q
-               (funcall
-                #'eat--manipulate-kill-ring
-                eat--t-term :secondary t))
-              (?s
-               (funcall
-                #'eat--manipulate-kill-ring
-                eat--t-term :select t))
-              ;; 0 to 9 targets are handled by us, and always work.
-              ((and (pred (<= ?0))
-                    (pred (>= ?7))
-                    i)
-               (aref (eat--t-term-cut-buffers eat--t-term)
-                     (- i ?0)))))
-           (cl-incf n))
-         ;; No string to send, so send an empty string.
-         (unless str (setq str ""))
-         (format "\e]52;%s;%s\e\\" targets
-                 (base64-encode-string (encode-coding-string
-                                        str locale-coding-system)
-                                       'no-line-break))))
-    ;; The client is requesting to set clipboard content, let's try to
-    ;; fulfill the request.
-    (let ((str (ignore-errors
-                 (decode-coding-string (base64-decode-string data)
-                                       locale-coding-system))))
-      (seq-doseq (target targets)
-        (pcase target
-          ;; c, p, q and s targets are handled by the UI, and they
-          ;; might reject the new clipboard content.
-          (?c
-           (funcall #'eat--manipulate-kill-ring
-                    eat--t-term :clipboard str))
-          (?p
-           (funcall #'eat--manipulate-kill-ring
-                    eat--t-term :primary str))
-          (?q
-           (funcall #'eat--manipulate-kill-ring
-                    eat--t-term :secondary str))
-          (?s
-           (funcall #'eat--manipulate-kill-ring
-                    eat--t-term :select str))
-          ;; 0 to 7 targets are handled by us, and always work.
-          ((and (pred (<= ?0))
-                (pred (>= ?7))
-                i)
-           (aset (eat--t-term-cut-buffers eat--t-term) (- i ?0)
-                 str)))))))
-
 (defun eat--t-ui-cmd (cmd)
   "Call UI's UIC handler to handle CMD."
   (eat--handle-uic eat--t-term cmd))
@@ -2636,15 +2534,7 @@ is the selection data encoded in base64."
                       ((rx string-start "51;"
                            (let cmd (zero-or-more anything))
                            string-end)
-                       (eat--t-ui-cmd cmd))
-                      ;; OSC 5 2 ; <t> ; <s> ST.
-                      ((rx string-start "52;"
-                           (let targets
-                             (zero-or-more (not (any ?\;))))
-                           ?\; (let data (zero-or-more anything))
-                           string-end)
-                       (eat--t-manipulate-selection
-                        targets data))))))))))
+                       (eat--t-ui-cmd cmd))))))))))
         (`(read-dcs-params ,next-state ,params)
          ;; There is no standard format of device control strings, but
          ;; all DEC and XTerm DCS sequences (including those we
@@ -3362,28 +3252,6 @@ STATE can be one of the following:
                  eat-very-visible-horizontal-bar-cursor-type)
                 (_ eat-default-cursor-type))))
 
-(defun eat--manipulate-kill-ring (_ selection data)
-  "Manipulate `kill-ring'.
-
-SELECTION can be one of `:clipboard', `:primary', `:secondary',
-`:select'.  When DATA is a string, set the selection to that string,
-when DATA is nil, unset the selection, and when DATA is t, return the
-selection, or nil if none."
-  (let ((inhibit-eol-conversion t)
-        (select-enable-clipboard (eq selection :clipboard))
-        (select-enable-primary (eq selection :primary)))
-    (pcase-exhaustive data
-      ('t
-       (when eat-enable-yank-to-terminal
-         (ignore-error error
-           (current-kill 0 'do-not-move))))
-      ('nil
-       (when eat-enable-kill-from-terminal
-         (kill-new "")))
-      ((and (pred stringp) str)
-       (when eat-enable-kill-from-terminal
-         (kill-new str))))))
-
 (defun eat--bell (_)
   "Ring the bell."
   (ding t))
@@ -3521,20 +3389,6 @@ STRING and ARG are passed to `yank-pop', which see."
          (buffer-string))))))
 
 
-(defun eat-xterm-paste (event)
-  "Handle paste operation EVENT from XTerm."
-  (interactive "e")
-  (unless (eq (car-safe event) 'xterm-paste)
-    (error "`eat-xterm-paste' must be bind to `xterm-paste' event"))
-  (let ((pasted-text (nth 1 event)))
-    (if (bound-and-true-p xterm-store-paste-on-kill-ring)
-        ;; Put the text onto the kill ring and then insert it into the
-        ;; buffer.
-        (let ((interprogram-paste-function (lambda () pasted-text)))
-          (eat-yank))
-      ;; Insert the text without putting it onto the kill ring.
-      (eat-term-send-string-as-yank eat-terminal pasted-text))))
-
 (defun eat-send-password ()
   "Read password from minibuffer and send it to the terminal."
   (declare (interactive-only t))
@@ -3552,7 +3406,6 @@ STRING and ARG are passed to `yank-pop', which see."
     (define-key map [?\C-c ?\M-d] #'eat-char-mode)
     (define-key map [?\C-c ?\C-e] #'eat-emacs-mode)
     (define-key map [?\C-c ?\C-k] #'eat-kill-process)
-    (define-key map [xterm-paste] #'ignore)
     map)
   "Keymap for Eat mode.")
 
@@ -3562,7 +3415,6 @@ STRING and ARG are passed to `yank-pop', which see."
               '([?\e ?\C-m] [?\C-c]))))
     (define-key map [?\C-\M-m] #'eat-emacs-mode)
     (define-key map [?\C-c ?\C-e] #'eat-emacs-mode)
-    (define-key map [xterm-paste] #'eat-xterm-paste)
     map)
   "Keymap for Eat char mode.")
 

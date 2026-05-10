@@ -67,7 +67,7 @@ Advanced Customizations
 * Display::             The region where everything is shown.
 * Scrollback::          Region for things that went out of display.
 * Cursor Types::        Cursor can displayed in many forms.
-* Clipboard::           Integrating kill ring with terminal.
+* Yanking::             Sending killed text to the terminal.
 * Colors::              Eat can show more than sixteen million colors.
 * Fonts::               Eat can show up to sixteen different fonts.
 * Performance Tuning::  Fine tuning to maximize performance.
@@ -272,42 +272,17 @@ This controls the cursor shape of the ``very visible horizontal bar''
 cursor type.
 @end defopt
 
-@node Clipboard
-@cindex clipboard
-@chapter Clipboard
-
+@node Yanking
 @cindex yanking
+@chapter Yanking
+
 @findex eat-yank
-@findex eat-yank-pop
-You can yank text to the terminal with @command{eat-yank}.  You can
-also cycle the kill ring with @command{eat-yank-pop}.
+@findex eat-yank-from-kill-ring
+You can yank text to the terminal with @command{eat-yank}.
 
-@cindex clipboard integration
-Programs can also request to the terminal to kill (@pxref{Killing,,,
-emacs, GNU Emacs Manual}) something.  It is up to Eat whether the
-request will be fulfilled or not.  By default, Eat fulfills the
-request and kills the text.  This can sometimes be annoying, when the
-program automatically kills text without user interaction.  This
-killing can be configured with the following user option:
-
-@vindex eat-enable-kill-from-terminal
-@defopt eat-enable-kill-from-terminal
-This controls killing texts from terminal.  When set to
-non-@code{nil}, killing something from terminal add the text to
-Emacs's kill ring (@pxref{Kill Ring,,, emacs, GNU Emacs Manual}).
-This is enabled by default.
-@end defopt
-
-Programs can also request the text in kill ring.  Again, this is up to
-Eat whether the request will be fulfilled or not.  You can customize
-the following user option to configure this:
-
-@vindex eat-enable-yank-to-terminal
-@defopt eat-enable-yank-to-terminal
-This controls sending kill ring texts to terminal.  When set to
-non-@code{nil}, programs can receive the kill ring contents.  This is
-disabled by default for security reasons.
-@end defopt
+To choose a specific entry from Emacs's kill ring
+(@pxref{Kill Ring,,, emacs, GNU Emacs Manual}), use
+@command{eat-yank-from-kill-ring}.
 
 @node Colors
 @cindex colors

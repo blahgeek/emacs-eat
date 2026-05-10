@@ -3214,10 +3214,6 @@ EXCEPTIONS is a list of key sequences to not bind.  Don't use
 (defvar-local eat--process nil
   "The subprocess associated with current Eat buffer.")
 
-(defvar eat--synchronize-scroll-function nil
-  "Function to synchronize scrolling between terminal and window.")
-
-
 (defun eat-reset ()
   "Perform a terminal reset."
   (interactive)
@@ -3320,8 +3316,7 @@ event."
                last-command-event))
            last-command-event)))
   (when eat-terminal
-    (funcall eat--synchronize-scroll-function
-             (eat--synchronize-scroll-windows 'force-selected))
+    (eat--synchronize-scroll 'force-selected)
     (eat-term-input-event eat-terminal n e)))
 
 (defun eat-quoted-input ()
@@ -3355,8 +3350,7 @@ argument COUNT specifies how many times to insert CHARACTER."
 ARG is passed to `yank', which see."
   (interactive "*P")
   (when eat-terminal
-    (funcall eat--synchronize-scroll-function
-             (eat--synchronize-scroll-windows 'force-selected))
+    (eat--synchronize-scroll 'force-selected)
     (eat-term-send-string-as-yank
      eat-terminal
      (let ((yank-hook (bound-and-true-p yank-transform-functions)))
@@ -3378,8 +3372,7 @@ STRING and ARG are passed to `yank-pop', which see."
   (unless (eval-when-compile (>= emacs-major-version 28))
     (error "`eat-yank-from-kill-ring' requires at least Emacs 28"))
   (when eat-terminal
-    (funcall eat--synchronize-scroll-function
-             (eat--synchronize-scroll-windows 'force-selected))
+    (eat--synchronize-scroll 'force-selected)
     (eat-term-send-string-as-yank
      eat-terminal
      (let ((yank-hook (bound-and-true-p yank-transform-functions)))
@@ -3435,39 +3428,38 @@ STRING and ARG are passed to `yank-pop', which see."
 
 ;;;;; Major Mode.
 
-(defun eat--synchronize-scroll-windows (&optional force-selected)
-  "Return the list of windows whose scrolling should be synchronized.
+(defvar eat-synchronize-scroll-inhibit-functions
+  '(eat--synchronize-scroll-inhibit-default)
+  "List of functions to call to determine whether to inhibit synchronizing scroll.
 
-When FORCE-SELECTED is non-nil, always include `buffer' and the
-selected window in the list if the window is showing the current
-buffer."
-  `(,@(and (or force-selected
-               eat--char-mode
-               (= (eat-term-display-cursor eat-terminal) (point)))
-           '(buffer))
-    ,@(seq-filter
-       (lambda (window)
-         (or (and force-selected (eq window (selected-window)))
-             (= (eat-term-display-cursor eat-terminal)
-                (window-point window))))
-       (get-buffer-window-list))))
+Each function should accept one argument, the window to check, and
+return non-nil if the window should not be synchronized.
+Each function is called with the terminal buffer as current buffer.")
 
-(defun eat--synchronize-scroll (windows)
-  "Synchronize scrolling and point between terminal and WINDOWS.
+(defun eat--synchronize-scroll-inhibit-default (_window)
+  "Return t when WINDOW should not be synchronized."
+  (not eat--char-mode))
 
-WINDOWS is a list of windows.  WINDOWS may also contain the special
-symbol `buffer', in which case the point of current buffer is set."
-  (dolist (window windows)
-    (if (eq window 'buffer)
-        (goto-char (eat-term-display-cursor eat-terminal))
-      (with-selected-window window
-        (set-window-point nil (eat-term-display-cursor eat-terminal))
-        (recenter
-         (- (how-many "\n" (eat-term-display-beginning eat-terminal)
-                      (eat-term-display-cursor eat-terminal))
-            (cdr (eat-term-size eat-terminal))
-            (max 0 (- (floor (window-screen-lines))
-                      (cdr (eat-term-size eat-terminal))))))))))
+(defun eat--synchronize-scroll (&optional force-selected)
+  "Synchronize scrolling and point between terminal and window.
+
+When FORCE-SELECTED is non-nil, always sync the current selected window
+if the window is showing the current buffer."
+  (when eat-terminal
+    (dolist (window (get-buffer-window-list))
+      (when (eq window (selected-window))
+        (when (or force-selected
+                  (not (run-hook-with-args-until-success 'eat-synchronize-scroll-inhibit-functions window)))
+          (goto-char (eat-term-display-cursor eat-terminal))))
+      (when (not (run-hook-with-args-until-success 'eat-synchronize-scroll-inhibit-functions window))
+        (with-selected-window window
+          (set-window-point nil (eat-term-display-cursor eat-terminal))
+          (recenter
+           (- (how-many "\n" (eat-term-display-beginning eat-terminal)
+                        (eat-term-display-cursor eat-terminal))
+              (cdr (eat-term-size eat-terminal))
+              (max 0 (- (floor (window-screen-lines))
+                        (cdr (eat-term-size eat-terminal)))))))))))
 
 (defun eat--setup-glyphless-chars ()
   "Setup the display of glyphless characters."
@@ -3513,7 +3505,6 @@ END if it's safe to do so."
           scroll-margin
           hscroll-margin
           eat-terminal
-          eat--synchronize-scroll-function
           eat--pending-output-chunks
           eat--output-queue-first-chunk-time
           eat--process-output-queue-timer))
@@ -3521,7 +3512,6 @@ END if it's safe to do so."
   (setq buffer-read-only nil)
   (setq scroll-margin 0)
   (setq hscroll-margin 0)
-  (setq eat--synchronize-scroll-function #'eat--synchronize-scroll)
   (setq filter-buffer-substring-function
         #'eat--filter-buffer-substring)
   (setq bidi-paragraph-direction 'left-to-right)
@@ -3601,9 +3591,7 @@ OS's."
   "Process the output queue on BUFFER."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
-      (let ((inhibit-quit t)        ; Don't disturb!
-            (sync-windows (eat--synchronize-scroll-windows))
-            (eat--auto-line-mode-pending-toggles nil))
+      (let ((inhibit-quit t))        ; Don't disturb!
         (save-restriction
           (widen)
           (let ((inhibit-read-only t)
@@ -3633,7 +3621,7 @@ OS's."
              (eat-term-beginning eat-terminal)
              (eat-term-end eat-terminal)
              '(read-only t field eat-terminal)))
-        (funcall eat--synchronize-scroll-function sync-windows))
+          (eat--synchronize-scroll))
       (run-hooks 'eat-update-hook)))))
 
 (defun eat--filter (process output)
@@ -3668,12 +3656,7 @@ to it."
     (when (memq (process-status process) '(signal exit))
       (if (buffer-live-p buffer)
           (with-current-buffer buffer
-            (let ((inhibit-read-only t)
-                  ;; We're is going to write outside of the terminal,
-                  ;; so we won't synchronize buffer scroll here as we
-                  ;; will set the buffer point automatically by
-                  ;; writing to the buffer.
-                  (eat--synchronize-scroll-function #'ignore))
+            (let ((inhibit-read-only t))
               (when eat--process-output-queue-timer
                 (cancel-timer eat--process-output-queue-timer)
                 (setq eat--process-output-queue-timer nil))
@@ -3704,11 +3687,10 @@ of window displaying PROCESS's buffer."
     (when size
       (let ((width (max (car size) 1))
             (height (max (cdr size) 1))
-            (inhibit-read-only t)
-            (sync-windows (eat--synchronize-scroll-windows)))
+            (inhibit-read-only t))
         (eat-term-resize eat-terminal width height)
         (eat-term-redisplay eat-terminal)
-        (funcall eat--synchronize-scroll-function sync-windows))
+        (eat--synchronize-scroll))
       (when (eq major-mode #'eat-mode)
         (run-hooks 'eat-update-hook)))
     size))

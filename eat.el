@@ -36,7 +36,7 @@
 ;; terminal multiplexer.
 
 ;; It has many feature that other Emacs terminal emulator still don't
-;; have, for example shell integration.
+;; have.
 
 ;; It flickers less than other Emacs terminal emulator, so you get
 ;; more performance and a smooth experience.
@@ -151,12 +151,6 @@ integration needs to be enabled to use this properly)."
                  (const :tag "No" nil)
                  (const :tag "If a shell command is running" auto))
   :group 'eat-ui)
-
-
-
-
-
-
 
 (defcustom eat-enable-directory-tracking t
   "Non-nil means do directory tracking.
@@ -352,59 +346,6 @@ This value is used by terminal programs to identify the terminal."
           (const :tag "Automatic" eat-term-get-suitable-term-name)
           (function :tag "Function"))
   :group 'eat-term)
-
-;; Upgrading Eat causes `eat-term-terminfo-directory' and
-;; `eat-term-shell-integration-directory' to be outdated, so update it
-;; if not modified by user (or something else).
-(defvar eat--load-file-path nil
-  "Path to currently loaded Eat.")
-
-(defvar eat--install-path nil
-  "Path to directory where Eat is installed.")
-
-(defvar eat--terminfo-path nil
-  "Path to directory where Terminfo databases are installed.")
-
-(defvar eat--shell-integration-path nil
-  "Path to directory where shell integration scripts are installed.")
-
-(setq eat--load-file-path (or load-file-name buffer-file-name))
-
-(setq eat--install-path
-      (copy-sequence (file-name-directory eat--load-file-path)))
-
-(defvar eat-term-terminfo-directory)
-(defvar eat-term-shell-integration-directory)
-(let ((old-terminfo-path eat--terminfo-path)
-      (old-shell-integration-path eat--shell-integration-path))
-  (setq eat--terminfo-path
-        (expand-file-name "terminfo" eat--install-path))
-  (setq eat--shell-integration-path
-        (expand-file-name "integration" eat--install-path))
-
-  (defcustom eat-term-terminfo-directory eat--terminfo-path
-    "Directory where required terminfo databases can be found.
-
-This value is used by terminal programs to find the terminfo databases
-that describe the capabilities of the terminal."
-    :type 'directory
-    :group 'eat-term)
-
-  (defcustom eat-term-shell-integration-directory
-    eat--shell-integration-path
-    "Directory where Eat shell integration scripts can be found.
-
-This value is exposed to terminal programs as
-`EAT_SHELL_INTEGRATION_DIR' environment variable."
-    :type 'directory
-    :group 'eat-ui)
-
-  (when (eq eat-term-terminfo-directory old-terminfo-path)
-    (setq eat-term-terminfo-directory eat--terminfo-path))
-  (when (eq eat-term-shell-integration-directory
-            old-shell-integration-path)
-    (setq eat-term-shell-integration-directory
-          eat--shell-integration-path)))
 
 (defcustom eat-term-inside-emacs (format "%s,eat" emacs-version)
   "Value for the `INSIDE_EMACS' environment variable."
@@ -4412,10 +4353,7 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
               (nconc
                (list
                 (concat "TERM=" (eat-term-name))
-                (concat "TERMINFO=" eat-term-terminfo-directory)
-                (concat "INSIDE_EMACS=" eat-term-inside-emacs)
-                (concat "EAT_SHELL_INTEGRATION_DIR="
-                        eat-term-shell-integration-directory))
+                (concat "INSIDE_EMACS=" eat-term-inside-emacs))
                process-environment))
              (process-connection-type t)
              ;; We should suppress conversion of end-of-line format.
@@ -4493,7 +4431,7 @@ PROGRAM."
 (defun eat--1 (program arg display-buffer-fn)
   "Start a new Eat terminal emulator in a buffer.
 
-PROGRAM and ARG is same as in `eat' and `eat-other-window'.
+PROGRAM and ARG is same as in `eat'.
 DISPLAY-BUFFER-FN is the function to display the buffer."
   (let ((program (or program (funcall eat-default-shell-function)))
         (buffer
@@ -4538,64 +4476,8 @@ PROGRAM can be a shell command."
          current-prefix-arg))
   (eat--1 program arg #'pop-to-buffer-same-window))
 
-;;;###autoload
-(defun eat-other-window (&optional program arg)
-  "Start a new Eat terminal emulator in a buffer in another window.
-
-Start a new Eat session, or switch to an already active session.
-Return the buffer selected (or created).
-
-With a non-numeric prefix ARG, create a new session.
-
-With a numeric prefix ARG switch to the session with that number, or
-create it if it doesn't already exist.
-
-With double prefix argument ARG, ask for the program to run and run it
-in a newly created session.
-
-PROGRAM can be a shell command."
-  (interactive
-   (list (when (equal current-prefix-arg '(16))
-           (read-shell-command "Run program: "
-                               (or explicit-shell-file-name
-                                   (getenv "ESHELL")
-                                   shell-file-name)))
-         current-prefix-arg))
-  (eat--1 program arg #'pop-to-buffer))
-
 
 ;;;; Miscellaneous.
-
-(defun eat-compile-terminfo ()
-  "Compile terminfo databases of Eat."
-  (interactive)
-  ;; Check for required files and programs.
-  (let ((source-path (expand-file-name "eat.ti" eat--install-path))
-        (tic-path (executable-find "tic")))
-    (unless (file-exists-p source-path)
-      (error "Eat not installed properly: %s"
-             "Terminfo source file not found"))
-    (unless tic-path
-      (error "Terminfo compiler `tic' not found"))
-    (message "Compiling terminfo databases...")
-    ;; Compile.
-    (let* ((command (format "env TERMINFO=\"%s\" %s -x %s"
-                            eat-term-terminfo-directory tic-path
-                            source-path))
-           (status
-            (with-temp-buffer
-              (make-directory eat-term-terminfo-directory 'parents)
-              (let ((proc (start-process-shell-command
-                           "eat-terminfo-compile"
-                           (current-buffer) command)))
-                (while (process-live-p proc)
-                  (sleep-for 0.02))
-                (process-exit-status proc)))))
-      (if (= status 0)
-          (message "Compiling terminfo databases...done")
-        (message "Compiling terminfo databases...error")
-        (error "Command `%s' exited with non-zero exit code %i"
-               command status)))))
 
 
 ;;;; Footer.

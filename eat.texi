@@ -62,7 +62,6 @@ Basic Operations
 * Password Input::      Safely inputting credentials.
 
 Advanced Customizations
-* Shell Integration::   Getting the most from Eat and your shell.
 * Querying Before Kill::  Confirming before you kill your terminal.
 * Changing Shell::      Changing the default shell.
 * Display::             The region where everything is shown.
@@ -218,163 +217,6 @@ it'll read password from the minibuffer and send it.  Since the
 password is read from the minibuffer, it's not recorded.
 
 @part Part III:@* Advanced Customizations
-
-@node Shell Integration
-@cindex shell integration
-@cindex integration, shell
-@chapter Shell Integration
-
-Eat comes with shell scripts to integrate your favorite shell with
-Eat.  When shell integration is enabled and the script is loaded in
-your shell, it'll take care of everything and provide many useful
-features.
-
-Currently only GNU Bash and Zsh are supported.
-
-If you use GNU Bash, put the following in your @samp{.bashrc} file:
-
-@example
-[ -n "$EAT_SHELL_INTEGRATION_DIR" ] && \
-  source "$EAT_SHELL_INTEGRATION_DIR/bash"
-@end example
-
-If you use Zsh, put the following in your @samp{.zshrc} file:
-
-@example
-[ -n "$EAT_SHELL_INTEGRATION_DIR" ] && \
-  source "$EAT_SHELL_INTEGRATION_DIR/zsh"
-@end example
-
-@anchor{Directory tracking}
-@cindex directory tracking
-@cindex tracking directory
-@cindex working directory tracking
-@cindex tracking working directory
-@cindex cwd tracking
-@cindex tracking cwd
-@section Directory tracking
-After you've setup shell integration, the Eat will track the working
-directory of your shell.  That means @command{find-file} will start
-from your shell's current working directory.  This also works in
-changed back to the directory from where the program was invoked.
-
-@vindex eat-enable-directory-tracking
-@defopt eat-enable-directory-tracking
-This controls directory tracking.  When set to non-@code{nil}, Eat
-tracks the current working directory of programs.
-@end defopt
-
-@anchor{Shell Prompt Navigation}
-@cindex shell prompt navigation
-@cindex shell navigation, shell prompt
-@cindex prompt navigation
-@cindex navigation, prompt
-@section Shell Prompt Navigation
-@kindex C-c C-p @r{(``emacs mode''})
-@findex eat-previous-shell-prompt
-@kindex C-c C-n @r{(``emacs mode'')}
-@findex eat-next-shell-prompt
-You can navigate shell prompts in ``emacs'' mode.
-@kbd{C-c C-p}, bound to @command{eat-previous-shell-prompt}, goes to
-the previous shell prompt.  @kbd{C-c C-n}, bound to
-@command{eat-next-shell-prompt}, is the opposite, it goes to the next
-
-@cindex narrow to shell prompt
-@cindex narrow to prompt
-@cindex narrow, shell prompt
-@cindex narrow, prompt
-@kindex C-x n d @r{(``emacs mode'')}
-@findex eat-narrow-to-shell-prompt
-You can narrow (@pxref{Narrowing,,, emacs, GNU Emacs Manual}) down Eat
-buffer to a shell prompt and its output (if any) using the key
-sequence @kbd{C-x n d}, bound to @command{eat-narrow-to-shell-prompt}.
-
-@anchor{Shell Prompt Annotation}
-@cindex shell prompt annotation
-@cindex annotation, shell prompt
-@cindex annotate, shell prompt
-@cindex prompt annotation
-@cindex annotation, prompt
-@cindex annotate, prompt
-@section Shell Prompt Annotation
-When shell integration is setup, Eat annotates each shell prompt.  Eat
-puts a mark on the shell prompt indicating the whether the command
-entered in that prompt is running, exited successfully or exited with
-feature if you want.
-
-@vindex eat-enable-shell-prompt-annotation
-@defopt eat-enable-shell-prompt-annotation
-This controls shell prompt annotation by Eat.  When set to
-non-@code{nil}, Eat annotates shell prompts to indicate the status of
-the command entered in that prompt.
-@end defopt
-
-Eat uses the marginal area
-(@pxref{Display Margins,,, elisp, GNU Emacs Lisp Reference Manual}) on
-the left side to display the annotation.  You also use the right
-margin.
-
-@vindex eat-shell-prompt-annotation-position
-@defopt eat-shell-prompt-annotation-position
-This controls where the shell prompt annotations are displayed.  When
-set to @code{left-margin} (the default), Eat uses the left margin.
-When set to @code{right-margin}, Eat uses the right margin.
-@end defopt
-
-@vindex eat-shell-prompt-annotation-running-margin-indicator
-@vindex eat-shell-prompt-annotation-running
-@vindex eat-shell-prompt-annotation-success-margin-indicator
-@vindex eat-shell-prompt-annotation-success
-@vindex eat-shell-prompt-annotation-failure-margin-indicator
-@vindex eat-shell-prompt-annotation-failure
-Eat uses the strings ``-'', ``0'' and ``X'' respectively to indicate
-the command is running, the command has succeeded and the command has
-failed.  You can also customize the them. The user option
-@code{eat-shell-prompt-annotation-running-margin-indicator} and the
-face @code{eat-shell-prompt-annotation-running} control the indicator
-used to indicate the command is running.  The user option
-@code{eat-shell-prompt-annotation-success-margin-indicator} and the
-face @code{eat-shell-prompt-annotation-success} control the indicator
-used to indicate the command has exited successfully.  And finally
-the user option
-@code{eat-shell-prompt-annotation-failure-margin-indicator} and the
-face @code{eat-shell-prompt-annotation-failure} control the indicator
-used to indicate the command has exited unsuccessfully with non-zero
-exit status.
-
-@anchor{Message Passing}
-@section Message Passing
-
-After enabling shell integration, you can send messages to Emacs from
-your shell.  Then you can handle the message on Emacs side using usual
-Emacs Lisp function.
-
-When shell integration script is loaded, a function named
-@command{_eat_msg} is defined in your shell.  You can use this to send
-any message to Emacs.  (The @samp{_} in the beginning of the function
-name is intentional to prevent shadowing any actual command.)
-
-@deffn Command _eat_msg @var{handler-name} @var{message}...
-Send message @var{message}, handled by the handler named
-@var{handler-name} in Emacs.
-@end deffn
-
-The messages are handled with the handlers defined in
-@code{eat-message-handler-alist}.
-
-@vindex eat-message-handler-alist
-@defopt eat-message-handler-alist
-Alist of message handler name and its handler function.  The keys are
-the names of message handlers (i.e. the @var{handler-name} argument of
-@command{_eat_msg}), and the values are their respective handler
-functions.  The handler function is called with the @var{message}
-arguments of @command{_eat_msg}.  Messages with undefined handlers are
-ignored.  To disable message passing, set this to nil.
-@end defopt
-
-Beware, messages can be sent by malicious and/or buggy programs
-running in the shell, therefore you should always verify the message
-before doing anywhere.
 
 @node Cursor Types
 @cindex cursor types
@@ -669,23 +511,6 @@ also set this to zero to disable waiting and showing the output
 instantly, but this would likely cause a lot of flickering.
 @end defopt
 
-Due to some limitations, shell prompt annotations
-(@pxref{Shell Integration}) can get messed up sometimes.  Eat
-automatically corrects them after each terminal redisplay.  However,
-this can have some performance impact when the terminal scrollback and
-display is large enough (unless the buffer is narrowed).  So Eat
-defers the correction.
-
-@vindex eat-shell-prompt-annotation-delay
-@defopt eat-shell-prompt-annotation-delay
-The value is the time in seconds to wait for more output before
-correcting shell prompt annotations.
-
-You should set the time to something comfortable for you.  You can
-also set this to zero to disable waiting and correct annotations
-instantly, but this may cause the terminal to slow down in some cases.
-@end defopt
-
 The user options described in this chapter have reasonable default
 values, but the default values may change anytime.
 
@@ -725,30 +550,6 @@ correct that your shell might be changing the @env{TERM} environment
 variable.  If @code{eat-term-name} isn't correct, customize to a
 suitable value and try again, your problem should be fixed.
 
-@vindex eat-term-terminfo-directory
-If @env{TERM} has the correct value, then probably the Terminfo
-databases of Eat are missing.  This can happen if you have installed
-Eat without using the package from NonGNU ELPA
-(@pxref{Packages,,, emacs, GNU Emacs Manual}).  Check that whether
-the values of the environment variable @env{TERMINFO} and the user
-option @code{eat-term-terminfo-directory} match.  If they match,
-customize @code{eat-term-terminfo-directory} to the directory
-containing the Terminfo databases, the program should now recognize
-Eat.  If they don't match, then your shell is probably responsible for
-the problem.
-
-@findex eat-compile-terminfo
-If the program is not recognizing the terminal even when
-the correct directory is set as @code{eat-term-terminfo-directory},
-probably the precompiled Terminfo databases aren't working properly on
-your system.  You can invoke the command
-@command{eat-compile-terminfo} to recompile it for your system.
-
-If you can't find the directory containing Terminfo databases, you can
-compile it yourself.  First, set @code{eat-term-terminfo-directory} to
-the directory where to put the Terminfo databases.  Then invoke the
-command @command{eat-compile-terminfo} to compile the Terminfo
-databases.
 
 @node Garbled Text
 @cindex garbled text
@@ -763,11 +564,6 @@ send invalid escape sequences.
 First, @pxref{Not Recognized}; the problem is most likely because the
 program doesn't recognize Eat, and it stays silent instead of
 reporting that.
-
-If the problem isn't resolved after following the instructions in the
-previous section, probably the precompiled Terminfo databases aren't
-working properly on your system.  Running the command
-@command{eat-compile-terminfo} will recompile it for your system.
 
 If the problem still persists, may be your program is blindly assuming
 that the terminal is XTerm-compatible.  If so, what you are seeing is

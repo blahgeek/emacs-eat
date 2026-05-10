@@ -10,12 +10,10 @@ comfortably run Emacs inside Eat, or even use your Emacs as a terminal
 multiplexer.
 
 It has many features that other Emacs terminal emulator still don't
-have, for example shell integration.
+have.
 
 It flickers less than other Emacs terminal emulator, so you get more
 performance and a smoother experience.
-
-To get the most out of Eat, you should also setup shell integration.
 
 * Usage
 
@@ -29,21 +27,6 @@ To start Eat, run =M-x eat=.  Eat has two input modes:
 - "char" mode: All supported keys are bound to send the key to the
   terminal, except =C-M-m=, =M-RET= or =C-c C-e=, which switch back
   to "emacs" input mode.
-
-To setup shell integration for GNU Bash, put the following at the end
-of your ~.bashrc~:
-
-#+begin_src sh
-[ -n "$EAT_SHELL_INTEGRATION_DIR" ] && \
-  source "$EAT_SHELL_INTEGRATION_DIR/bash"
-#+end_src sh
-
-For Zsh, put the following in your ~.zshrc~:
-
-#+begin_src sh
-[ -n "$EAT_SHELL_INTEGRATION_DIR" ] && \
-  source "$EAT_SHELL_INTEGRATION_DIR/zsh"
-#+end_src sh
 
 There's a Info manual available with much more information, which can
 be accessed with =C-h i m Eat=, also available [[https://elpa.nongnu.org/nongnu-devel/doc/eat.html][here on the internet]].
@@ -71,9 +54,6 @@ your ~package-archives~ by putting the following in your ~init.el~:
 (quelpa '(eat :fetcher git
               :url "https://codeberg.org/akib/emacs-eat"
               :files ("*.el" ("term" "term/*.el") "*.texi"
-                      "*.ti" ("terminfo/e" "terminfo/e/*")
-                      ("terminfo/65" "terminfo/65/*")
-                      ("integration" "integration/*")
                       (:exclude ".dir-locals.el" "*-tests.el"))))
 #+end_src
 
@@ -85,9 +65,6 @@ your ~package-archives~ by putting the following in your ~init.el~:
        :host codeberg
        :repo "akib/emacs-eat"
        :files ("*.el" ("term" "term/*.el") "*.texi"
-               "*.ti" ("terminfo/e" "terminfo/e/*")
-               ("terminfo/65" "terminfo/65/*")
-               ("integration" "integration/*")
                (:exclude ".dir-locals.el" "*-tests.el"))))
 #+end_src
 

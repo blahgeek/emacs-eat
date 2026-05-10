@@ -58,7 +58,6 @@ Introduction
 
 Basic Operations
 * Keyboard::            Most keyboard keys are captured by Eat.
-* Mouse::               Eat supports mouse.
 * Input Modes::         Input modes for various use-cases.
 * Password Input::      Safely inputting credentials.
 
@@ -69,7 +68,6 @@ Advanced Customizations
 * Display::             The region where everything is shown.
 * Scrollback::          Region for things that went out of display.
 * Cursor Types::        Cursor can displayed in many forms.
-* Mouse Tracking::      Eat tracks mouse, but this can be changed.
 * Clipboard::           Integrating kill ring with terminal.
 * Colors::              Eat can show more than sixteen million colors.
 * Fonts::               Eat can show up to sixteen different fonts.
@@ -150,17 +148,6 @@ In ``emacs mode'', input is handled by Emacs instead.
 
 You can switch between these behaviors with @kbd{C-c M-d} and
 @kbd{C-c C-e}.  @xref{Input Modes}.
-
-@node Mouse
-@cindex mouse
-@chapter Mouse
-
-Eat supports mouse tracking.  That means in programs like Emacs,
-@samp{htop}, etc, that support mouse, you can hover and click on
-text and buttons.  You can also use your mouse wheel to scroll text,
-if the program supports it.
-
-@xref{Mouse Tracking} to configure mouse tracking.
 
 @node Input Modes
 @cindex input modes
@@ -441,22 +428,6 @@ This controls the cursor shape of the ``horizontal bar'' cursor type.
 @defopt eat-very-visible-horizontal-bar-cursor-type
 This controls the cursor shape of the ``very visible horizontal bar''
 cursor type.
-@end defopt
-
-@node Mouse Tracking
-@cindex mouse tracking
-@cindex tracking mouse
-@chapter Mouse Tracking
-
-Eat tracks mouse by default, when the program supports mouse.  But
-sometimes, you may want to avoid using mouse, or you might not have a
-mouse at all.  So mouse tracking can be toggled.
-
-@vindex eat-enable-mouse
-@defopt eat-enable-mouse
-This user option controls mouse tracking.  When set to non-@code{nil},
-mouse tracking is enabled.  Set to this to @code{nil} to disable mouse
-tracking.  This is enabled by default.
 @end defopt
 
 @node Clipboard

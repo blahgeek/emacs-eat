@@ -36,7 +36,7 @@
 ;; terminal multiplexer.
 
 ;; It has many feature that other Emacs terminal emulator still don't
-;; have, for example complete mouse support.
+;; have, for example shell integration.
 
 ;; It flickers less than other Emacs terminal emulator, so you get
 ;; more performance and a smooth experience.
@@ -428,13 +428,6 @@ contents on display unaltered."
 (make-obsolete-variable 'eat-enable-alternative-display
                         "don't use it." "0.9" 'set)
 
-(defcustom eat-enable-mouse t
-  "Non-nil means enable mouse support.
-
-When non-nil, terminal programs can receive mouse events from Emacs."
-  :type 'boolean
-  :group 'eat-ui)
-
 (defcustom eat-input-chunk-size 1024
   "Maximum size of chunk of data send at once.
 
@@ -795,9 +788,6 @@ For example: when THRESHOLD is 3, \"*foobarbaz\" is converted to
   (manipulate-selection-fn
    (1value #'ignore)
    :documentation "Function to manipulate selection.")
-  (grab-mouse-fn
-   (1value #'ignore)
-   :documentation "Function to grab mouse.")
   (set-focus-ev-mode-fn
    (1value #'ignore)
    :documentation "Function to set focus event mode.")
@@ -835,9 +825,6 @@ Nil when not in alternative display mode.")
    :documentation "Saved SGR attributes.")
   (bracketed-yank nil :documentation "State of bracketed yank mode.")
   (keypad-mode nil :documentation "State of keypad mode.")
-  (mouse-mode nil :documentation "Current mouse mode.")
-  (mouse-pressed nil :documentation "Pressed mouse buttons.")
-  (mouse-encoding nil :documentation "Current mouse event encoding.")
   (focus-event-mode nil :documentation "Whether to send focus event.")
   (cut-buffers
    (1value (make-vector 8 nil))
@@ -867,7 +854,6 @@ Nil when not in alternative display mode.")
         (puthash 'input-function #'ignore tbl)
         (puthash 'ring-bell-function #'ignore tbl)
         (puthash 'set-cursor-function #'ignore tbl)
-        (puthash 'grab-mouse-function #'ignore tbl)
         (puthash 'grab-focus-events-function #'ignore tbl)
         (puthash 'manipulate-selection-function #'ignore tbl)
         (puthash 'set-title-function #'ignore tbl)
@@ -920,13 +906,10 @@ Don't `set' it, bind it to a value with `let'.")
     (setf (eat--t-term-cur-visible-p eat--t-term) t)
     (setf (eat--t-term-title eat--t-term) "")
     (setf (eat--t-term-keypad-mode eat--t-term) nil)
-    (setf (eat--t-term-mouse-mode eat--t-term) nil)
-    (setf (eat--t-term-mouse-encoding eat--t-term) nil)
     (setf (eat--t-term-focus-event-mode eat--t-term) nil)
     ;; Clear everything.
     (delete-region (point-min) (point-max))
     ;; Inform the UI about our new state.
-    (funcall (eat--t-term-grab-mouse-fn eat--t-term) eat--t-term nil)
     (funcall (eat--t-term-set-focus-ev-mode-fn eat--t-term)
              eat--t-term nil)
     (funcall (eat--t-term-set-title-fn eat--t-term) eat--t-term "")
@@ -2333,57 +2316,6 @@ TOP defaults to 1 and BOTTOM defaults to the height of the display."
   "Disable keypad."
   (1value (setf (eat--t-term-keypad-mode eat--t-term) nil)))
 
-(defun eat--t-enable-sgr-mouse-encoding ()
-  "Arrange that the following mouse events will be encoded like SGR."
-  (setf (eat--t-term-mouse-encoding eat--t-term) 'sgr))
-
-(defun eat--t-disable-sgr-mouse-encoding ()
-  "Arrange that the following mouse events won't be encoded like SGR."
-  (setf (eat--t-term-mouse-encoding eat--t-term) nil))
-
-(defun eat--t-set-mouse-mode (mode)
-  "Set current mouse mode to MODE.
-
-MODE should be one of nil and `x10', `normal', `button-event',
-`any-event'."
-  (setf (eat--t-term-mouse-mode eat--t-term) mode)
-  ;; When MODE is nil, disable mouse.
-  (unless mode
-    (eat--t-disable-sgr-mouse-encoding))
-  ;; `x10' mouse mode doesn't need to keep track of the mouse buttons
-  ;; pressed.
-  (when (or (not mode)
-            (eq mode 'x10))
-    (setf (eat--t-term-mouse-pressed eat--t-term) nil))
-  ;; Inform the UI.
-  (funcall (eat--t-term-grab-mouse-fn eat--t-term) eat--t-term
-           (pcase-exhaustive mode
-             ('x10 :click)
-             ('normal :modifier-click)
-             ('button-event :drag)
-             ('any-event :all)
-             ('nil nil))))
-
-(defun eat--t-enable-x10-mouse ()
-  "Enable X10 mouse tracking."
-  (eat--t-set-mouse-mode 'x10))
-
-(defun eat--t-enable-normal-mouse ()
-  "Enable normal mouse tracking."
-  (eat--t-set-mouse-mode 'normal))
-
-(defun eat--t-enable-button-event-mouse ()
-  "Enable button-event mouse tracking."
-  (eat--t-set-mouse-mode 'button-event))
-
-(defun eat--t-enable-any-event-mouse ()
-  "Enable any-event mouse tracking."
-  (eat--t-set-mouse-mode 'any-event))
-
-(defun eat--t-disable-mouse ()
-  "Disable mouse tracking."
-  (eat--t-set-mouse-mode nil))
-
 (defun eat--t-enable-focus-event ()
   "Enable sending focus events."
   (1value (setf (eat--t-term-focus-event-mode eat--t-term) t))
@@ -2558,21 +2490,11 @@ is the selection data encoded in base64."
           (eat--t-enable-keypad))
          ('(7)
           (eat--t-enable-auto-margin))
-         ('(9)
-          (eat--t-enable-x10-mouse))
          ('(12))
          ('(25)
           (eat--t-show-cursor))
-         ('(1000)
-          (eat--t-enable-normal-mouse))
-         ('(1002)
-          (eat--t-enable-button-event-mouse))
-         ('(1003)
-          (eat--t-enable-any-event-mouse))
          ('(1004)
           (eat--t-enable-focus-event))
-         ('(1006)
-          (eat--t-enable-sgr-mouse-encoding))
          ('(1048)
           (eat--t-save-cur))
          (`(,(or 1047 1049))
@@ -2599,12 +2521,8 @@ is the selection data encoded in base64."
          ('(12))
          ('(25)
           (eat--t-hide-cursor))
-         (`(,(or 9 1000 1002 1003))
-          (eat--t-disable-mouse))
          ('(1004)
           (eat--t-disable-focus-event))
-         ('(1006)
-          (eat--t-disable-sgr-mouse-encoding))
          ('(1047)
           (eat--t-disable-alt-disp 'dont-move-cursor))
          ('(1048)
@@ -3284,10 +3202,6 @@ is the selection data encoded in base64."
      (unless (functionp value)
        (signal 'wrong-type-argument (list 'functionp value)))
      (setf (eat--t-term-set-cursor-fn terminal) value))
-    ('grab-mouse-function
-     (unless (functionp value)
-       (signal 'wrong-type-argument (list 'functionp value)))
-     (setf (eat--t-term-grab-mouse-fn terminal) value))
     ('grab-focus-events-function
      (unless (functionp value)
        (signal 'wrong-type-argument (list 'functionp value)))
@@ -3466,13 +3380,7 @@ event list of any of the following forms:
     Terminal just lost focus.
 
 REF-POS is a mouse position list pointing to the start of terminal
-display satisfying the predicate `posnp'.  It is used to calculate the
-position of mouse events and `eat-mouse-drag' events on terminal when
-given.
-
-For mouse events, events should be sent on both mouse button press and
-release unless the mouse grabing mode is `:click', otherwise the
-client process may get confused."
+display satisfying the predicate `posnp'."
   (eat--t-ensure-live-term terminal)
   (let ((disp (eat--t-term-display terminal)))
     (cl-flet ((send (str)
@@ -3636,170 +3544,6 @@ client process may get confused."
                              (format
                               (if (memq 'meta mods) "\e%c" "%c")
                               ch))))))))))
-          ;; Mouse handling.
-          ((and (guard (eat--t-term-mouse-mode terminal))
-                mouse
-                (pred eventp)
-                (or (and (let mouse-type (event-basic-type mouse))
-                         (let (rx string-start "mouse-"
-                                  (let key-num (one-or-more
-                                                (any (?0 . ?9))))
-                                  string-end)
-                           (symbol-name mouse-type))
-                         (let (and (pred (<= 1))
-                                   (pred (>= 11))
-                                   mouse-num)
-                           (string-to-number key-num)))
-                    (and (let 'wheel-up (event-basic-type mouse))
-                         (let mouse-num 4))
-                    (and (let 'wheel-down (event-basic-type mouse))
-                         (let mouse-num 5))
-                    (and (let 'wheel-right (event-basic-type mouse))
-                         (let mouse-num 6))
-                    (and (let 'wheel-left (event-basic-type mouse))
-                         (let mouse-num 7))))
-           (let* ((modifiers (event-modifiers mouse))
-                  (pos (if (memq 'drag modifiers)
-                           (event-end mouse)
-                         (event-start mouse)))
-                  (x-y (if (eval-when-compile
-                             (< emacs-major-version 29))
-                           (posn-col-row pos)
-                         (with-suppressed-warnings
-                             ((callargs posn-col-row))
-                           (posn-col-row pos 'use-window))))
-                  (x (1+ (car x-y)))
-                  (y (1+ (cdr x-y)))
-                  (button
-                   (let ((b (aref
-                             [0 1 2 64 65 66 67 128 129 130 131]
-                             (1- mouse-num))))
-                     (when (memq 'shift modifiers)
-                       (cl-incf b 4))
-                     (when (memq 'meta modifiers)
-                       (cl-incf b 8))
-                     (when (memq 'control modifiers)
-                       (cl-incf b 16))
-                     b)))
-             (when ref-pos
-               (let ((ref-x-y
-                      (if (eval-when-compile
-                            (< emacs-major-version 29))
-                          (posn-col-row ref-pos)
-                        (with-suppressed-warnings
-                            ((callargs posn-col-row))
-                          (posn-col-row ref-pos 'use-window)))))
-                 (cl-decf x (car ref-x-y))
-                 (cl-decf y (cdr ref-x-y))))
-             (when (and (<= 1 x (eat--t-disp-width disp))
-                        (<= 1 y (eat--t-disp-height disp))
-                        (or (eat--t-term-mouse-encoding terminal)
-                            (and (<= x 95)
-                                 (<= y 95)
-                                 (<= button 95))))
-               (if (eq (eat--t-term-mouse-mode terminal) 'x10)
-                   (when (and (< button 3)
-                              (or (memq 'click modifiers)
-                                  (memq 'drag modifiers)))
-                     (send
-                      (if (eq (eat--t-term-mouse-encoding terminal)
-                              'sgr)
-                          (format "\e[<%i;%i;%iM" button x y)
-                        (format "\e[M%c%c%c" (+ button 32) (+ x 32)
-                                (+ y 32)))))
-                 (cond
-                  ;; `down-mouse-1' and friends.
-                  ((memq 'down modifiers)
-                   ;; For `mouse-1', `mouse-2' and `mouse-3', keep
-                   ;; track the button's state, we'll need it when
-                   ;; button event mouse mode is enabled.
-                   (when (< (logand button 3) 3)
-                     (setf (eat--t-term-mouse-pressed terminal)
-                           ;; In XTerm and Kitty, mouse-1 is
-                           ;; prioritized over mouse-2, and mouse-2
-                           ;; over mouse-3.  However St doesn't keep
-                           ;; track of multiple buttons.
-                           (sort
-                            (cons button (eat--t-term-mouse-pressed
-                                          terminal))
-                            #'<)))
-                   (send
-                    (if (eq (eat--t-term-mouse-encoding terminal)
-                            'sgr)
-                        (format "\e[<%i;%i;%iM" button x y)
-                      (format "\e[M%c%c%c" (+ button 32) (+ x 32)
-                              (+ y 32)))))
-                  ;; `mouse-1', `mouse-2', `mouse-3', and their
-                  ;; `drag'ged variants.
-                  ((and (or (memq 'click modifiers)
-                            (memq 'drag modifiers))
-                        (<= mouse-num 3))
-                   ;; For `mouse-1', `mouse-2' and `mouse-3', keep
-                   ;; track the button's state, we'll need it when
-                   ;; button event mouse mode is enabled.
-                   (setf (eat--t-term-mouse-pressed terminal)
-                         (cl-delete-if
-                          (lambda (b)
-                            (= (logand b 3) (logand button 3)))
-                          (eat--t-term-mouse-pressed terminal)))
-                   (send
-                    (if (eq (eat--t-term-mouse-encoding terminal)
-                            'sgr)
-                        (format "\e[<%i;%i;%im" button x y)
-                      (format "\e[M%c%c%c" (+ (logior button 3) 32)
-                              (+ x 32) (+ y 32)))))
-                  ;; Mouse wheel, `mouse-4' and friends.
-                  (t
-                   (send
-                    (if (eq (eat--t-term-mouse-encoding terminal)
-                            'sgr)
-                        (format "\e[<%i;%i;%iM" button x y)
-                      (format "\e[M%c%c%c" (+ button 32) (+ x 32)
-                              (+ y 32))))))))))
-          ;; Mouse movement tracking.
-          ((and (guard (memq (eat--t-term-mouse-mode terminal)
-                             '(button-event any-event)))
-                (pred mouse-movement-p)
-                movement)
-           (let* ((pos (event-start movement))
-                  (x-y (if (eval-when-compile
-                             (< emacs-major-version 29))
-                           (posn-col-row pos)
-                         (with-suppressed-warnings
-                             ((callargs posn-col-row))
-                           (posn-col-row pos 'use-window))))
-                  (x (1+ (car x-y)))
-                  (y (1+ (cdr x-y)))
-                  (button
-                   (if (car (eat--t-term-mouse-pressed terminal))
-                       (+ (car (eat--t-term-mouse-pressed terminal))
-                          32)
-                     35)))
-             (when ref-pos
-               (let ((ref-x-y
-                      (if (eval-when-compile
-                            (< emacs-major-version 29))
-                          (posn-col-row ref-pos)
-                        (with-suppressed-warnings
-                            ((callargs posn-col-row))
-                          (posn-col-row ref-pos 'use-window)))))
-                 (cl-decf x (car ref-x-y))
-                 (cl-decf y (cdr ref-x-y))))
-             (when (and (or (eq (eat--t-term-mouse-mode terminal)
-                                'any-event)
-                            (/= button 35))
-                        (<= 1 x (eat--t-disp-width disp))
-                        (<= 1 y (eat--t-disp-height disp))
-                        (or (eat--t-term-mouse-encoding terminal)
-                            (and (<= x 95)
-                                 (<= y 95)
-                                 (<= button 95))))
-               (send
-                (if (eq (eat--t-term-mouse-encoding terminal)
-                        'sgr)
-                    (format "\e[<%i;%i;%iM" button x y)
-                  (format "\e[M%c%c%c" (+ button 32) (+ x 32)
-                          (+ y 32)))))))
           ;; Focus events.
           ('(eat-focus-in)
            (when (eat--t-term-focus-event-mode terminal)
@@ -3845,10 +3589,6 @@ keywords:
                         and next (or page down) with all possible
                         modifiers.
   `:function'           Function keys (f1 - f63).
-  `:mouse-click'        `mouse-1', `mouse-2' and `mouse-3'.
-  `:mouse-modifier'     All mouse events except mouse movement.
-  `:mouse-movement'     Mouse movement.
-
 EXCEPTIONS is a list of key sequences to not bind.  Don't use
 \"M-...\" key sequences in EXCEPTIONS, use \"ESC ...\" instead."
   (let ((map (make-sparse-keymap)))
@@ -3911,68 +3651,6 @@ EXCEPTIONS is a list of key sequences to not bind.  Don't use
          for i from 1 to 63
          do (let ((key (intern (format "f%i" i))))
               (bind (vector key)))))
-      (when (memq :mouse-click categories)
-        (dolist (key '(mouse-1 mouse-2 mouse-3))
-          (bind (vector key))))
-      (when (memq :mouse-modifier categories)
-        (dolist (key
-                 '( down-mouse-1 drag-mouse-1 down-mouse-2
-                    drag-mouse-2 down-mouse-3 drag-mouse-3
-                    C-down-mouse-1 C-drag-mouse-1 C-down-mouse-2
-                    C-drag-mouse-2 C-down-mouse-3 C-drag-mouse-3
-                    M-down-mouse-1 M-drag-mouse-1 M-down-mouse-2
-                    M-drag-mouse-2 M-down-mouse-3 M-drag-mouse-3
-                    S-down-mouse-1 S-drag-mouse-1 S-down-mouse-2
-                    S-drag-mouse-2 S-down-mouse-3 S-drag-mouse-3
-                    C-M-down-mouse-1 C-M-drag-mouse-1
-                    C-M-down-mouse-2 C-M-drag-mouse-2
-                    C-M-down-mouse-3 C-M-drag-mouse-3
-                    C-S-down-mouse-1 C-S-drag-mouse-1
-                    C-S-down-mouse-2 C-S-drag-mouse-2
-                    C-S-down-mouse-3 C-S-drag-mouse-3
-                    M-S-down-mouse-1 M-S-drag-mouse-1
-                    M-S-down-mouse-2 M-S-drag-mouse-2
-                    M-S-down-mouse-3 M-S-drag-mouse-3
-                    C-M-S-down-mouse-1 C-M-S-drag-mouse-1
-                    C-M-S-down-mouse-2 C-M-S-drag-mouse-2
-                    C-M-S-down-mouse-3 C-M-S-drag-mouse-3 mouse-1
-                    mouse-2 mouse-3 mouse-4 mouse-5 mouse-6 mouse-7
-                    mouse-8 mouse-9 mouse-10 mouse-11 C-mouse-1
-                    C-mouse-2 C-mouse-3 C-mouse-4 C-mouse-5
-                    C-mouse-6 C-mouse-7 C-mouse-8 C-mouse-9
-                    C-mouse-10 C-mouse-11 M-mouse-1 M-mouse-2
-                    M-mouse-3 M-mouse-4 M-mouse-5 M-mouse-6
-                    M-mouse-7 M-mouse-8 M-mouse-9 M-mouse-10
-                    M-mouse-11 S-mouse-1 S-mouse-2 S-mouse-3
-                    S-mouse-4 S-mouse-5 S-mouse-6 S-mouse-7
-                    S-mouse-8 S-mouse-9 S-mouse-10 S-mouse-11
-                    C-M-mouse-1 C-M-mouse-2 C-M-mouse-3 C-M-mouse-4
-                    C-M-mouse-5 C-M-mouse-6 C-M-mouse-7 C-M-mouse-8
-                    C-M-mouse-9 C-M-mouse-10 C-M-mouse-11
-                    C-S-mouse-1 C-S-mouse-2 C-S-mouse-3 C-S-mouse-4
-                    C-S-mouse-5 C-S-mouse-6 C-S-mouse-7 C-S-mouse-8
-                    C-S-mouse-9 C-S-mouse-10 C-S-mouse-11
-                    M-S-mouse-1 M-S-mouse-2 M-S-mouse-3 M-S-mouse-4
-                    M-S-mouse-5 M-S-mouse-6 M-S-mouse-7 M-S-mouse-8
-                    M-S-mouse-9 M-S-mouse-10 M-S-mouse-11
-                    C-M-S-mouse-1 C-M-S-mouse-2 C-M-S-mouse-3
-                    C-M-S-mouse-4 C-M-S-mouse-5 C-M-S-mouse-6
-                    C-M-S-mouse-7 C-M-S-mouse-8 C-M-S-mouse-9
-                    C-M-S-mouse-10 C-M-S-mouse-11 wheel-up
-                    wheel-down wheel-right wheel-left C-wheel-up
-                    C-wheel-down C-wheel-right C-wheel-left
-                    M-wheel-up M-wheel-down M-wheel-right
-                    M-wheel-left S-wheel-up S-wheel-down
-                    S-wheel-right S-wheel-left C-M-wheel-up
-                    C-M-wheel-down C-M-wheel-right C-M-wheel-left
-                    C-S-wheel-up C-S-wheel-down C-S-wheel-right
-                    C-S-wheel-left M-S-wheel-up M-S-wheel-down
-                    M-S-wheel-right M-S-wheel-left C-M-S-wheel-up
-                    C-M-S-wheel-down C-M-S-wheel-right
-                    C-M-S-wheel-left))
-          (bind (vector key))))
-      (when (memq :mouse-movement categories)
-        (bind [mouse-movement])))
     map))
 
 (defun eat-term-name ()
@@ -4379,17 +4057,6 @@ prompt."
 
 ;;;;; Input.
 
-(defvar eat--mouse-grabbing-type nil
-  "Current mouse grabbing type/mode.")
-
-(defvar eat--mouse-pressed-buttons nil
-  "Mouse buttons currently pressed.")
-
-(defvar eat--mouse-last-position nil
-  "Last position of mouse, nil when not dragging.")
-
-(defvar eat--mouse-drag-transient-map-exit nil
-  "Function to exit mouse dragging transient map.")
 
 (defun eat-self-input (n &optional e)
   "Send E as input N times.
@@ -4417,86 +4084,10 @@ event."
               (t
                last-command-event))
            last-command-event)))
-  (when (memq (event-basic-type e)
-              '( mouse-1 mouse-2 mouse-3 mouse-4 mouse-5 mouse-6
-                 mouse-7 mouse-8 mouse-9 mouse-10 mouse-11))
-    (select-window (posn-window (event-start e))))
   (when eat-terminal
-    (unless (mouse-movement-p e)
-      (funcall eat--synchronize-scroll-function
-               (eat--synchronize-scroll-windows 'force-selected)))
-    (if (memq (event-basic-type e)
-              '( mouse-1 mouse-2 mouse-3 mouse-4 mouse-5 mouse-6
-                 mouse-7 mouse-8 mouse-9 mouse-10 mouse-11
-                 mouse-movement))
-        (let ((disp-begin-posn
-               (posn-at-point
-                (eat-term-display-beginning eat-terminal)))
-              (e (if (or (not eat--mouse-last-position)
-                         (eq (posn-window
-                              (if (memq 'drag (event-modifiers e))
-                                  (event-end e)
-                                (event-start e)))
-                             (posn-window eat--mouse-last-position)))
-                     e
-                   (pcase e
-                     (`(,type ,_)
-                      `(,type ,eat--mouse-last-position))
-                     (`(,type ,start ,_)
-                      `(,type ,start ,eat--mouse-last-position))
-                     (ev ev)))))
-          (if (not (mouse-movement-p e))
-              (eat-term-input-event eat-terminal n e disp-begin-posn)
-            (if (not eat--mouse-pressed-buttons)
-                (when (eq eat--mouse-grabbing-type :all)
-                  (eat-term-input-event eat-terminal n e
-                                        disp-begin-posn))
-              (when (memq eat--mouse-grabbing-type '(:all :drag))
-                (eat-term-input-event eat-terminal n e
-                                      disp-begin-posn))
-              (setq eat--mouse-last-position (event-start e))))
-          (when (memq (event-basic-type e) '(mouse-1 mouse-2 mouse-3))
-            (when (or (memq 'click (event-modifiers e))
-                      (memq 'drag (event-modifiers e)))
-              (setq eat--mouse-pressed-buttons
-                    (delq (event-basic-type e)
-                          eat--mouse-pressed-buttons))
-              (unless eat--mouse-pressed-buttons
-                (setq eat--mouse-last-position nil)
-                (when eat--mouse-drag-transient-map-exit
-                  (funcall eat--mouse-drag-transient-map-exit)
-                  (setq eat--mouse-drag-transient-map-exit nil))))
-            (when (memq 'down (event-modifiers e))
-              (push (event-basic-type e) eat--mouse-pressed-buttons)
-              (setq eat--mouse-last-position (event-start e))
-              (unless eat--mouse-drag-transient-map-exit
-                (let ((old-track-mouse track-mouse)
-                      (buffer (current-buffer)))
-                  (setq track-mouse 'dragging)
-                  (setq eat--mouse-drag-transient-map-exit
-                        (set-transient-map
-                         (let ((map (eat-term-make-keymap
-                                     #'eat-self-input
-                                     '(:mouse-modifier
-                                       :mouse-movement)
-                                     nil)))
-                           ;; Some of the events will of course end up
-                           ;; looked up with a mode-line, header-line
-                           ;; or vertical-line prefix ...
-                           (define-key map [mode-line] map)
-                           (define-key map [header-line] map)
-                           (define-key map [tab-line] map)
-                           (define-key map [vertical-line] map)
-                           ;; ... and some maybe even with a right- or
-                           ;; bottom-divider prefix.
-                           (define-key map [right-divider] map)
-                           (define-key map [bottom-divider] map))
-                         #'always
-                         (lambda ()
-                           (with-current-buffer buffer
-                             (setq track-mouse
-                                   old-track-mouse))))))))))
-      (eat-term-input-event eat-terminal n e))))
+    (funcall eat--synchronize-scroll-function
+             (eat--synchronize-scroll-windows 'force-selected))
+    (eat-term-input-event eat-terminal n e)))
 
 (defun eat-quoted-input ()
   "Read a character and send it as INPUT."
@@ -4562,32 +4153,6 @@ STRING and ARG are passed to `yank-pop', which see."
          (yank-from-kill-ring string arg)
          (buffer-string))))))
 
-(defun eat-mouse-yank-primary (&optional event)
-  "Send the primary selection to the terminal.
-
-EVENT is the mouse event."
-  (interactive "e")
-  (when select-active-regions
-    (let (select-active-regions)
-      (deactivate-mark)))
-  (unless (windowp (posn-window (event-start event)))
-    (error "Position not in text area of window"))
-  (select-window (posn-window (event-start event)))
-  (eat-term-send-string-as-yank
-   eat-terminal (gui-get-primary-selection)))
-
-(defun eat-mouse-yank-secondary (&optional event)
-  "Send the secondary selection to the terminal.
-
-EVENT is the mouse event."
-  (interactive "e")
-  (unless (windowp (posn-window (event-start event)))
-    (error "Position not in text area of window"))
-  (select-window (posn-window (event-start event)))
-  (let ((secondary (gui-get-selection 'SECONDARY)))
-    (if secondary
-        (eat-term-send-string-as-yank eat-terminal secondary)
-      (error "No secondary selection"))))
 
 (defun eat-xterm-paste (event)
   "Handle paste operation EVENT from XTerm."
@@ -4637,41 +4202,10 @@ EVENT is the mouse event."
     map)
   "Keymap for Eat char mode.")
 
-(defvar eat--mouse-click-mode-map
-  (eat-term-make-keymap #'eat-self-input '(:mouse-click) nil)
-  "Keymap for `eat--mouse-click-mode'.")
-
-(defvar eat--mouse-modifier-click-mode-map
-  (eat-term-make-keymap #'eat-self-input '(:mouse-modifier) nil)
-  "Keymap for `eat--mouse-modifier-click-mode'.")
-
-(defvar eat--mouse-movement-mode-map
-  (eat-term-make-keymap #'eat-self-input '(:mouse-movement) nil)
-  "Keymap for `eat--mouse-movement-mode'.")
-
-(define-minor-mode eat--char-mode
-  "Minor mode for char mode keymap."
-  :interactive nil
-  :keymap eat-char-mode-map)
-
-(define-minor-mode eat--mouse-click-mode
-  "Minor mode for mouse click keymap."
-  :interactive nil)
-
-(define-minor-mode eat--mouse-modifier-click-mode
-  "Minor mode for mouse click with modifiers keymap."
-  :interactive nil)
-
-(define-minor-mode eat--mouse-movement-mode
-  "Minor mode for mouse movement keymap."
-  :interactive nil)
-
-(defun eat-emacs-mode ()
   "Switch to Emacs keybindings mode."
   (interactive)
   (eat--char-mode -1)
   (setq buffer-read-only t)
-  (eat--grab-mouse nil eat--mouse-grabbing-type)
   (force-mode-line-update))
 
 (defun eat-char-mode ()
@@ -4681,45 +4215,9 @@ EVENT is the mouse event."
     (error "Process not running"))
   (setq buffer-read-only nil)
   (eat--char-mode +1)
-  (eat--grab-mouse nil eat--mouse-grabbing-type)
   (force-mode-line-update))
 
-(defun eat--grab-mouse (_ mode)
-  "Grab mouse.
 
-MODE should one of:
-
-  nil                 Disable mouse.
-  `:click'              Pass `mouse-1', `mouse-2', and `mouse-3'
-                        clicks.
-  `:modifier-click'     Pass all mouse clicks, including control,
-                        meta and shift modifiers.
-  `:drag'               All of :modifier-click, plus dragging
-                        (moving mouse while pressed) information.
-  `:all'                Pass all mouse events, including movement.
-  Any other value     Disable mouse."
-  (setq eat--mouse-grabbing-type mode)
-  (pcase (and eat-enable-mouse eat--char-mode mode)
-    (:all
-     (setq track-mouse t)
-     (eat--mouse-click-mode -1)
-     (eat--mouse-modifier-click-mode +1)
-     (eat--mouse-movement-mode +1))
-    ((or :modifier-click :drag)
-     (setq track-mouse nil)
-     (eat--mouse-click-mode -1)
-     (eat--mouse-movement-mode -1)
-     (eat--mouse-modifier-click-mode +1))
-    (:click
-     (setq track-mouse nil)
-     (eat--mouse-modifier-click-mode -1)
-     (eat--mouse-movement-mode -1)
-     (eat--mouse-click-mode +1))
-    (_
-     (setq track-mouse nil)
-     (eat--mouse-click-mode -1)
-     (eat--mouse-modifier-click-mode -1)
-     (eat--mouse-movement-mode -1))))
 
 
 ;;;;; Major Mode.
@@ -4804,12 +4302,10 @@ END if it's safe to do so."
           mode-line-buffer-identification
           glyphless-char-display
           cursor-type
-          track-mouse
           scroll-margin
           hscroll-margin
           eat-terminal
           eat--synchronize-scroll-function
-          eat--mouse-grabbing-type
           eat--shell-command-status
           eat--shell-prompt-begin
           eat--shell-prompt-mark
@@ -4826,34 +4322,13 @@ END if it's safe to do so."
   (setq filter-buffer-substring-function
         #'eat--filter-buffer-substring)
   (setq bidi-paragraph-direction 'left-to-right)
-  (setq eat--mouse-grabbing-type nil)
   (setq mode-line-process
         '(""
           (:eval
            (when eat-terminal
              (if eat--char-mode
-                 '("["
-                   (:propertize
-                    "char"
-                    help-echo "mouse-1: Switch to emacs mode"
-                    mouse-face mode-line-highlight
-                    local-map
-                    (keymap
-                     (mode-line
-                      . (keymap
-                         (down-mouse-1 . eat-emacs-mode)))))
-                   "]")
-               '("["
-                 (:propertize
-                  "emacs"
-                  help-echo "mouse-1: Switch to char mode"
-                  mouse-face mode-line-highlight
-                  local-map
-                  (keymap
-                   (mode-line
-                    . (keymap
-                       (down-mouse-1 . eat-char-mode)))))
-                 "]"))))
+                 "[char]"
+               "[emacs]")))
           ":%s"))
   (when eat-show-title-on-mode-line
     (setq mode-line-buffer-identification
@@ -5046,7 +4521,6 @@ to it."
               (eat-term-delete eat-terminal)
               (setq eat-terminal nil)
               (eat--set-cursor nil :default)
-              (eat--grab-mouse nil nil)
               (goto-char (point-max))
               (insert "\nProcess " (process-name process) " "
                       message)
@@ -5110,8 +4584,6 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
             #'eat--send-input)
       (setf (eat-term-parameter eat-terminal 'set-cursor-function)
             #'eat--set-cursor)
-      (setf (eat-term-parameter eat-terminal 'grab-mouse-function)
-            #'eat--grab-mouse)
       (setf (eat-term-parameter
              eat-terminal 'manipulate-selection-function)
             #'eat--manipulate-kill-ring)

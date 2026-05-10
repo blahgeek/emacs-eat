@@ -53,7 +53,7 @@ your ~package-archives~ by putting the following in your ~init.el~:
 #+begin_src emacs-lisp
 (quelpa '(eat :fetcher git
               :url "https://codeberg.org/akib/emacs-eat"
-              :files ("*.el" ("term" "term/*.el") "*.texi"
+              :files ("*.el" "*.texi"
                       (:exclude ".dir-locals.el" "*-tests.el"))))
 #+end_src
 
@@ -64,7 +64,7 @@ your ~package-archives~ by putting the following in your ~init.el~:
  '(eat :type git
        :host codeberg
        :repo "akib/emacs-eat"
-       :files ("*.el" ("term" "term/*.el") "*.texi"
+       :files ("*.el" "*.texi"
                (:exclude ".dir-locals.el" "*-tests.el"))))
 #+end_src
 

@@ -15,6 +15,8 @@ Operational notes for future AI agents working in this repo.
 
 - Main test command:
   - `make check`
+- For normal validation, run `make check` directly in the foreground and capture its output.
+- Use `tmux` only when you specifically need a long-running/background session or interactive investigation; don't require `tmux` for routine test runs in this repo.
 - The ERT suite lives in `eat-tests.el` and is wired by `Makefile`.
 - When deleting features, remove or update the corresponding tests in `eat-tests.el` in the same change.
 - After feature removal, search test expectations for stale property/assertion names with `rg` before running tests.

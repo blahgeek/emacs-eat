@@ -10,8 +10,7 @@ comfortably run Emacs inside Eat, or even use your Emacs as a terminal
 multiplexer.
 
 It has many features that other Emacs terminal emulator still don't
-have, for example Sixel support, complete mouse support, shell
-integration, etc.
+have, for example complete mouse support and shell integration.
 
 It flickers less than other Emacs terminal emulator, so you get more
 performance and a smoother experience.
@@ -20,63 +19,16 @@ To get the most out of Eat, you should also setup shell integration.
 
 * Usage
 
-To start Eat, run =M-x eat=.  Eat has four input modes:
-
-- "semi-char" mode: This is the default input mode.  Most keys are
-  bound to send the key to the terminal, except the following keys:
-  =C-\=, =C-c=, =C-x=, =C-g=, =C-h=, =C-M-c=, =C-u=, =C-q=, =M-x=,
-  =M-:=, =M-!=, =M-&= and some other keys (see the user option
-  ~eat-semi-char-non-bound-keys~ for the complete list).  The
-  following special keybinding are available:
-
-  - =C-q=: Send next key to the terminal.
-  - =C-y=: Like `yank', but send the text to the terminal.
-  - =M-y=: Like `yank-pop', but send the text to the terminal.
-  - =C-c C-k=: Kill process.
-  - =C-c C-e=: Switch to "emacs" input mode.
-  - =C-c M-d=: Switch to "char" input mode.
-  - =C-c C-l=: Switch to "line" input mode.
+To start Eat, run =M-x eat=.  Eat has two input modes:
 
 - "emacs" mode: No special keybinding, except the following:
 
-  - =C-c C-j=: Switch to "semi-char" input mode.
   - =C-c M-d=: Switch to "char" input mode.
-  - =C-c C-l=: Switch to "line" input mode.
   - =C-c C-k=: Kill process.
 
 - "char" mode: All supported keys are bound to send the key to the
-  terminal, except =C-M-m= or =M-RET=, which is bound to switch to
-  "semi-char" input mode.
-
-- "line" mode: Similar to Comint, Shell mode and Term line mode.  In
-  this input mode, terminal input is sent one line at once, and you
-  can edit input line using the usual Emacs commands.
-
-  - =C-c C-e=: Switch to "emacs" input mode
-  - =C-c C-j=: Switch to "semi-char" input mode.
-  - =C-c M-d=: Switch to "char" input mode.
-
-If you like Eshell, then there is a good news for you.  Eat integrates
-with Eshell.  Eat has two global minor modes for Eshell:
-
-- ~eat-eshell-visual-command-mode~: Run visual commands with Eat
-  instead of Term.
-
-- ~eat-eshell-mode~: Run Eat inside Eshell.  After enabling this, you
-  can run full-screen terminal programs directly in Eshell.  You have
-  the above input modes here too, except line mode and that =C-c C-k=
-  is not special (i.e. not bound by Eat) in "emacs" mode and "line"
-  mode.
-
-You can add any of these to ~eshell-load-hook~ like the following:
-
-#+begin_src emacs-lisp
-;; For `eat-eshell-mode'.
-(add-hook 'eshell-load-hook #'eat-eshell-mode)
-
-;; For `eat-eshell-visual-command-mode'.
-(add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode)
-#+end_src
+  terminal, except =C-M-m=, =M-RET= or =C-c C-e=, which switch back
+  to "emacs" input mode.
 
 To setup shell integration for GNU Bash, put the following at the end
 of your ~.bashrc~:
@@ -191,6 +143,5 @@ didn't exist:
 - [[https://repo.or.cz/emacs-coterm.git][Coterm]]
 - [[https://www.gnu.org/software/emacs/manual/html_node/emacs/Interactive-Shell.html][Shell]]
 - [[https://github.com/akermu/emacs-libvterm][Vterm]]
-- [[https://www.gnu.org/software/emacs/manual/html_node/eshell/index.html][Eshell]]
 - Numerous terminal programs
 - And obviously, [[https://www.gnu.org/software/emacs/][GNU Emacs]]

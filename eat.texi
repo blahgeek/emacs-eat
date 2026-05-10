@@ -55,8 +55,6 @@ Documentation License''.
 Introduction
 * Intro::               What is Eat?
 * Hello Terminal::      Starting Eat's terminal for the first time.
-* Project-local Terminal::  One project, one terminal.
-* Eshell Terminal::     Eat's terminal emulation in Eshell.
 
 Basic Operations
 * Keyboard::            Most keyboard keys are captured by Eat.
@@ -75,14 +73,11 @@ Advanced Customizations
 * Clipboard::           Integrating kill ring with terminal.
 * Colors::              Eat can show more than sixteen million colors.
 * Fonts::               Eat can show up to sixteen different fonts.
-* Sixel::               Eat can render Sixel graphics.
-* Blinking Text::       Annoying blinking texts.
 * Performance Tuning::  Fine tuning to maximize performance.
 
 Recovering from Problems
 * Common Problems::     Common problem, and fixes.
 * Reporting Bugs::      How to report problems?
-* Tracing the Terminal::  Gathering some crucial information to
                           reproduce a bug.
 
 Appendices
@@ -140,55 +135,6 @@ If you give it double prefix argument, for example
 @kbd{C-u C-u M-x eat}, you'll be prompted for the program or shell
 command to run, and it'll be run in a newly created terminal.
 
-@node Project-local Terminal
-@cindex project-local terminal
-@cindex terminal, project-local
-@cindex project's terminal
-@cindex project terminal
-@cindex terminal, project
-@chapter Project-local Terminal
-
-@findex eat-project
-Usually, you don't use a single terminal for everything, instead you
-open a terminal for each project that needs it.  So there is command
-named @command{eat-project}.  It opens a new terminal in project root
-directory, or switches to a already existing project terminal.  It too
-accepts prefix argument, just like the ordinary @command{eat} command.
-
-@node Eshell Terminal
-@cindex eshell terminal
-@cindex terminal, eshell
-@cindex eshell terminal emulation
-@cindex terminal emulation, eshell
-@cindex eat, eshell
-@cindex eshell, eat
-@cindex eshell
-@chapter Eshell Terminal Emulation
-
-Eat also supports terminal emulation outside Eat's terminal.  So you
-can emulate terminal in Eshell (@pxref{Top,,, eshell, Eshell manual})
-with Eat.  After configuring Eshell to use Eat for terminal emulation,
-you can run any full screen terminal program in Eshell.
-
-@findex eat-eshell-mode
-To enable terminal emulation in Eshell, enable the global minor mode
-@command{eat-eshell-mode}.  It will enable Eat's terminal emulation in
-Eshell.  To disable the terminal emulation, disable the minor mode.
-
-You can't toggle the global minor mode while any Eshell command is
-running, so terminate any Eshell command or wait them to finish before
-toggling the mode.
-
-Unless stated otherwise, everything described in this manual about
-Eat terminal also applies to Eshell terminal emulation.
-
-You might also want to set @code{eshell-visual-commands} user option
-to nil, since they'll work in Eshell when @code{eat-eshell-mode} is
-enabled.
-
-If you want to run Eshell visual commands with Eat, you can enable the
-global minor mode @command{eat-eshell-visual-command-mode}.
-
 @part Part II:@* Basic Operations
 
 @node Keyboard
@@ -196,22 +142,14 @@ global minor mode @command{eat-eshell-visual-command-mode}.
 @chapter Keyboard
 
 Just like any other text terminal, the primary interaction device with
-Eat terminal is the keyboard.  Eat forwards all supported keyboard
-events like @kbd{a}, @kbd{E}, @kbd{RET}, @kbd{C-a} to the terminal.
+Eat terminal is the keyboard.
 
-However, this conflict with Emacs keybinding conventions, and makes it
-almost impossible to call any other Emacs command.  So, by default,
-Eat doesn't intercept the key sequences beginning with the following
-keys and lets Emacs to handle them: @kbd{C-\}, @kbd{C-c}, @kbd{C-x},
-@kbd{C-g}, @kbd{C-h}, @kbd{C-M-c}, @kbd{C-u}, @kbd{C-q}, @kbd{M-x},
-@kbd{M-:}, @kbd{M-!} and @kbd{M-&}.
+In ``char mode'', Eat forwards supported keyboard events like
+@kbd{a}, @kbd{E}, @kbd{RET}, and @kbd{C-a} directly to the terminal.
+In ``emacs mode'', input is handled by Emacs instead.
 
-To input the above key sequences, prefix them with @kbd{C-q}.
-@kbd{C-q} reads the next event and sends to directly to the terminal.
-For example, to input @kbd{M-:}, use the key sequence @kbd{C-q M-:}.
-
-For an alternative way to input these exceptional characters,
-@pxref{Char Mode}.
+You can switch between these behaviors with @kbd{C-c M-d} and
+@kbd{C-c C-e}.  @xref{Input Modes}.
 
 @node Mouse
 @cindex mouse
@@ -231,85 +169,9 @@ if the program supports it.
 @cindex modes, keybinding
 @chapter Input Modes
 
-By default, Eat forwards all supported keys to terminals, except some
-exceptions.  It is possible to input them with @kbd{C-q}, but it is
-not very convenient.
-
-To conveniently input those character, they should be bound to input
-themselves to the terminal (i.e. pressing @kbd{M-x} will input
-@kbd{M-x}, bypassing Emacs).  But this is conflicts with Emacs's
-default keybindings, so this can't done, at least by default.
-
-To overcome the problem, Eat implements several ``input modes''.  Each
-input mode has a different set of keybindings for different
-applications.
-
-@anchor{Semi-char Mode}
-@cindex semi-char mode
-@cindex mode, semi-char
-@cindex keybindings, semi-char mode
-@cindex keybinding mode, semi-char
-@cindex input mode, semi-char
-@section Semi-char Mode
-
-``Semi-char mode'' is the default input mode of Eat.  This works for
-most inputs.  It forwards all keys, except @kbd{C-\}, @kbd{C-c},
-@kbd{C-x}, @kbd{C-g}, @kbd{C-h}, @kbd{C-M-c}, @kbd{C-u}, @kbd{M-x},
-@kbd{C-q}, @kbd{M-:}, @kbd{M-!}, @kbd{M-&} and some other keys, Emacs
-handles them.
-
-@cindex inputting exceptional characters
-@kindex C-q @r{(``semi-char mode'')}
-To input these exceptions, there is a key @kbd{C-q}.  This reads the
-next input event and sends that as the input.  For example, the key
-sequences @kbd{C-q M-:} inputs @kbd{M-:}, @kbd{C-q C-g} inputs
-@kbd{C-g}.
-
-Input methods (@pxref{Input Methods,,, emacs, GNU Emacs Manual}) work
-in this mode, so, unlike Term (@pxref{Terminal emulator, Emacs
-Terminal Emulator, Emacs Terminal Emulator, emacs, GNU Emacs Manual}),
-Emacs built-in terminal emulator, you can still input any character.
-
-@kindex C-c C-c @r{(``semi-char mode'')}
-@kindex C-c C-k @r{(``semi-char mode'')}
-In ``semi-char mode'', @kbd{C-c C-c} sends a @kbd{C-c}, just for
-convenience, and @kbd{C-c C-k} kills the terminal program.
-
-@cindex customizing semi-char mode
-@cindex customizing semi-char mode keys
-@cindex customizing semi-char mode keybindings
-@cindex mode, semi-char, customizing
-@cindex keybindings, semi-char mode, customizing
-@cindex keybinding mode, semi-char, customizing
-@cindex input mode, semi-char, customizing
-@cindex mode, semi-char, adding exceptions
-@cindex keybindings, semi-char mode, adding exceptions
-@cindex keybinding mode, semi-char, adding exceptions
-@cindex input mode, semi-char, adding exceptions
-@cindex mode, semi-char, exception, add
-@cindex keybindings, semi-char mode, exception, add
-@cindex keybinding mode, semi-char, exception, add
-@cindex input mode, semi-char, exception, add
-@vindex eat-semi-char-non-bound-keys
-@vindex eat-eshell-semi-char-non-bound-keys
-You can customize the exceptions by customizing the user option
-@code{eat-semi-char-non-bound-keys}, and
-@code{eat-eshell-semi-char-non-bound-keys} for Eshell integration.
-Both user options contain a list of keys of form @code{[@var{key}]},
-where @var{key} is a key not to bind.  @var{key} mustn't contain meta
-modifier.  To not bind a key with meta modifier, use a vector of form
-@code{[?\e @var{key}]}, where @var{key} is the key without meta
-modifier.  These user options contain all the ``semi-char'' mode
-exceptions listed above, plus some more exceptions.
-
-@findex eat-update-semi-char-mode-map
-@findex eat-eshell-update-semi-char-mode-map
-@findex eat-reload
-If you set the user options manually (for example, with @code{setq}),
-you must call @code{eat-update-semi-char-mode-map} or
-@code{eat-eshell-update-semi-char-mode-map} respectively, and finally
-reload Eat (you can do this with the command @command{eat-reload}).
-Or alternatively you can set the user options before Eat is loaded.
+Eat has two ``input modes'': ``emacs mode'' and ``char mode''.
+Use ``emacs mode'' when you want normal Emacs keybindings, and use
+``char mode'' when you want keys to go directly to the terminal.
 
 @anchor{Char Mode}
 @cindex char mode
@@ -319,17 +181,7 @@ Or alternatively you can set the user options before Eat is loaded.
 @cindex input mode, char
 @section Char Mode
 
-By default, Eat is in ``semi-char mode''.  In this input mode, Eat
-forwards all supported keys to terminals, except some exceptions,
-@pxref{Semi-char Mode}.  It is possible to input them with @kbd{C-q},
-but it is not very convenient.
-
-@kindex C-c M-d @r{(``semi-char mode'')}
-To overcome this problem, Eat implements another input mode called
-``char mode''.  To switch to ``char mode'', press @kbd{C-c M-d} in
-``semi-char mode''.  In Eshell, the command
-@command{eshell-toggle-direct-send} is remapped to enable
-``char-mode'', which is usually bound to @kbd{C-c M-d}.
+To switch to ``char mode'', press @kbd{C-c M-d}.
 
 In this input mode, Eat forwards all supported keys.  However, input
 methods still work in this mode, so you can still input keys that are
@@ -337,8 +189,9 @@ not on your keyboard.
 
 @kindex C-M-m @r{(``char mode'')}
 @kindex M-RET @r{(``char mode'')}
-To get out of ``char mode'', press @kbd{C-M-m} or @kbd{M-@key{RET}},
-this switches back to ``semi-char mode''.
+@kindex C-c C-e @r{(``char mode'')}
+To get out of ``char mode'', press @kbd{C-M-m}, @kbd{M-@key{RET}} or
+@kbd{C-c C-e}; this switches back to ``emacs mode''.
 
 @anchor{Emacs Mode}
 @cindex emacs mode
@@ -352,104 +205,11 @@ In ``emacs mode'', no input events are send to the terminal.  In this
 mode, you can interact with the terminal buffer just like a regular
 buffer.  However, you are not allowed to change the buffer contents.
 
-@kindex C-c C-e @r{(``semi-char mode'')}
-To switch to ``emacs mode'', press @kbd{C-c C-e} from ``semi-char
-mode''.
-
 @kindex C-c C-k @r{(``emacs mode'')}
-In this mode, @kbd{C-c C-k} kills the terminal program like in
-``semi-char mode''.
+In this mode, @kbd{C-c C-k} kills the terminal program.
 
-@kindex C-c C-j @r{(``emacs mode'')}
 @kindex C-c M-d @r{(``emacs mode'')}
-From ``emacs mode'', you can switch to ``semi-char mode'' with
-@kbd{C-c C-j} and to ``char mode'' with @kbd{C-c M-d}.  In Eshell, the
-command @command{eshell-toggle-direct-send} is remapped to enable
-``char-mode'', which is usually bound to @kbd{C-c M-d}.
-
-@anchor{Line Mode}
-@cindex line mode
-@cindex mode, line
-@cindex keybindings, line mode
-@cindex keybinding mode, line
-@cindex input mode, line
-@section Line Mode
-
-In ``line mode'', input is sent one line at a line, similar to Comint
-or Shell mode (@pxref{Interactive Shell,,, emacs, GNU Emacs Manual}).
-Like ``emacs mode'', you can interact with buffer as you wish; but at
-the very end of the buffer, you can edit the input line with usual
-Emacs commands.  This is not available in Eshell.
-
-@kindex C-c C-l @r{(``semi-char mode'')}
-@kindex C-c C-l @r{(``emacs mode'')}
-To enter ``line mode'', press @kbd{C-c C-l} from ``semi-char mode'' or
-``emacs mode''.
-
-@kindex @key{RET} @r{(``line mode'')}
-@kindex C-c @key{SPC} @r{(``line mode'')}
-@kbd{@key{RET}} sends the current input with a trailing newline, and
-clear the input area for new input to be written.  When called with a
-prefix argument, no newline is appended before sending input.  To
-input a newline character without actually sending it, you can press
-@kbd{C-c @key{SPC}}.
-
-@kindex C-c C-c @r{(``line mode'')}
-@kindex C-d @r{(``line mode'')}
-@kbd{C-c C-c} discards the input completely and sends an interrupt to
-the terminal.  @kbd{C-d} deletes the character after the point, or
-sends EOF if the input is empty.
-
-@vindex eat-line-auto-move-to-input
-You can't modify the terminal in ``line mode'', you can write only in
-the input line.  Eat automatically moves the point to the input line
-if you try to insert character in the terminal region.  This behavior
-can be disabled by customizing @code{eat-line-auto-move-to-input} to
-@code{nil}.
-
-@kindex C-c C-e @r{(``line mode'')}
-@kindex C-c C-j @r{(``line mode'')}
-@kindex C-c M-d @r{(``line mode'')}
-You can exit to ``emacs mode'', ``semi-char mode'' or ``char mode''
-with @kbd{C-c C-e}, @kbd{C-c C-j} or @kbd{C-c M-d} respectively.  If
-there's any pending input when exiting line mode, it is sent as is to
-the terminal.
-
-@kindex M-p @r{(``line mode'')}
-@kindex M-n @r{(``line mode'')}
-@kindex C-@key{up} @r{(``line mode'')}
-@kindex C-@key{down} @r{(``line mode'')}
-@kindex M-r @r{(``line mode'')}
-@kindex C-c M-r @r{(``line mode'')}
-@kindex C-c M-s @r{(``line mode'')}
-@kindex C-c C-r @r{(``line mode'')}
-@kindex @key{TAB} @r{(``line mode'')}
-The input history is recorded.  You can cycle through the history with
-@kbd{M-p} and @kbd{M-n}, and also with @kbd{C-@key{up}} and
-@kbd{C-@key{down}}.  @kbd{C-c M-r} and @kbd{C-c M-s} searches the
-input history taking the current input as the query.  @kbd{C-c M-r}
-searches backward while @kbd{C-c M-s} searches forward.  And @kbd{C-c
-C-r} searches the input history using minibuffer with completion,
-useful specially if you use any minibuffer completion UI/framework.
-
-You can also use Isearch
-(@pxref{Incremental Search,,, emacs, GNU Emacs Manual}) to search
-through the input history, with @kbd{M-r}.  You can also customize
-@code{eat-line-input-history-isearch} to use all standard Isearch
-commands to search the input history.
-
-@vindex eat-line-input-history-isearch
-@defopt eat-line-input-history-isearch
-Controls where Isearch searches in Eat buffer.  If @code{t}, usual
-Isearch commands in Eat buffer search in the input history.  If
-@code{dwim}, Isearch keys search in the input history only when
-initial point position is on input line.  When starting Isearch from
-other parts of the Eat buffer, they search in the Eat buffer.  If
-@code{nil}, Isearch operates on the whole Eat buffer.
-@end defopt
-
-Input history is not loaded from the shell history file, to do that,
-@xref{Line Mode Integration}.
+From ``emacs mode'', you can switch to ``char mode'' with @kbd{C-c M-d}.
 
 @node Password Input
 @cindex password input
@@ -509,7 +269,6 @@ If you use Zsh, put the following in your @samp{.zshrc} file:
 After you've setup shell integration, the Eat will track the working
 directory of your shell.  That means @command{find-file} will start
 from your shell's current working directory.  This also works in
-Eshell, but after the program exits, the current working directory is
 changed back to the directory from where the program was invoked.
 
 @vindex eat-enable-directory-tracking
@@ -525,23 +284,19 @@ tracks the current working directory of programs.
 @cindex navigation, prompt
 @section Shell Prompt Navigation
 @kindex C-c C-p @r{(``emacs mode''})
-@kindex C-c C-p @r{(``semi-char mode'')}
 @findex eat-previous-shell-prompt
 @kindex C-c C-n @r{(``emacs mode'')}
-@kindex C-c C-n @r{(``semi-char mode'')}
 @findex eat-next-shell-prompt
-You can navigate shell prompts in ``emacs'' and ``semi-char'' mode.
+You can navigate shell prompts in ``emacs'' mode.
 @kbd{C-c C-p}, bound to @command{eat-previous-shell-prompt}, goes to
 the previous shell prompt.  @kbd{C-c C-n}, bound to
 @command{eat-next-shell-prompt}, is the opposite, it goes to the next
-shell prompt.  This doesn't work in Eshell.
 
 @cindex narrow to shell prompt
 @cindex narrow to prompt
 @cindex narrow, shell prompt
 @cindex narrow, prompt
 @kindex C-x n d @r{(``emacs mode'')}
-@kindex C-x n d @r{(``semi-char mode'')}
 @findex eat-narrow-to-shell-prompt
 You can narrow (@pxref{Narrowing,,, emacs, GNU Emacs Manual}) down Eat
 buffer to a shell prompt and its output (if any) using the key
@@ -558,7 +313,6 @@ sequence @kbd{C-x n d}, bound to @command{eat-narrow-to-shell-prompt}.
 When shell integration is setup, Eat annotates each shell prompt.  Eat
 puts a mark on the shell prompt indicating the whether the command
 entered in that prompt is running, exited successfully or exited with
-non-zero status.  This doesn't work in Eshell.  You can disable this
 feature if you want.
 
 @vindex eat-enable-shell-prompt-annotation
@@ -635,136 +389,19 @@ Beware, messages can be sent by malicious and/or buggy programs
 running in the shell, therefore you should always verify the message
 before doing anywhere.
 
-@anchor{Line Mode Integration}
-@cindex line mode integration
-@cindex line mode shell integration
-@cindex integration, shell, line mode
-@section Line Mode Integration
-
-When shell integration is enabled, the input history of line mode is
-automatically filled with the shell history when the shell starts.
-Also you can make Eat automatically switch to ``line mode''
-(@pxref{Line Mode}) for you when the shell prompt appears.
-
-@vindex eat-enable-auto-line-mode
-@defopt eat-enable-auto-line-mode
-When non-nil, automatically switch to line mode the shell prompt
-appears.
-@end defopt
-
-@node Querying Before Kill
-@cindex querying before kill
-@cindex querying before kill terminal
-@cindex confirm before kill
-@cindex confirm before kill terminal
-@cindex terminal, kill, query
-@cindex terminal, kill, confirm
-@chapter Querying Before Kill
-
-When a terminal is killed, the terminal process is also killed.  Since
-the process can do some important things, Eat asks for confirmation
-before killing a terminal with running process by default.  Eat
-provides the user option
-@code{eat-query-before-killing-running-terminal} to control this.
-
-@vindex eat-query-before-killing-running-terminal
-@defopt eat-query-before-killing-running-terminal
-When set to @code{nil}, Eat would never ask.  When set to @code{t},
-Eat would always ask for confirmation.  When set to @code{auto}, Eat
-would ask only if a shell command is running inside the shell running
-in the terminal.  This is effective only after shell integration is
-enabled in the shell (@pxref{Shell Integration}) (i.e. after the shell
-integration code is executed on shell); before that it is essentially
-same as @code{t}, and Eat will always query.
-@end defopt
-
-@node Changing Shell
-@cindex changing default shell
-@cindex changing shell
-@cindex shell, default, changing
-@cindex default, shell changing
-@cindex shell, changing shell
-@chapter Changing the Default Shell
-
-Eat automatically uses a reasonable shell by default.  However you can
-customize it.
-
-@vindex eat-shell
-@defopt eat-shell
-The default shell to run.
-@end defopt
-
-@vindex eat-tramp-shells
-@defopt eat-tramp-shells
-This user options allows you to customize default shell for each Tramp
-method.  It's an alist and it's elements are of form (TRAMP-METHOD
-SHELL).
-@end defopt
-
-@vindex eat-default-shell-function
-@defopt eat-default-shell-function
-This user options gives more control on the default shell.  It
-specifies a function to call without any argument, whose return value
-is used as the default shell.
-
-If you change this from the default value, @code{eat-shell} and
-@code{eat-tramp-shells} won't work.
-@end defopt
-
-@node Display
-@cindex display
-@chapter Display
-
-Display is the region you see on the terminal.  The program writes to
-the display and manipulates the text on the display.  The display can
-be of any size.  The cursor is always on the display (though it might
-be invisible sometimes, @pxref{Cursor Types}).
-
-@vindex window-adjust-process-window-size-function
-You can resize the display by resizing the terminal window.  The
-display size is controlled by the Emacs user option
-@code{window-adjust-process-window-size-function}. @xref{Process
-Buffers,,, elisp, GNU Emacs Lisp Reference Manual} for the possible
-values of the user option.
-
-@node Scrollback
-@cindex scrollback
-@chapter Scrollback
-
-When you go too downward on the terminal, the terminal starts to
-``scroll''.  This causes the line at the upper side of the terminal to
-go out of the display and become hidden.  But these line are not
-deleted, they are just put in the scrollback region.
-
-Scrollback region is a region just above the display of the terminal.
-This contains the lines that went out of display due to scrolling up.
-
-Scrollback region is not unlimited by default, to avoid using too much
-memory.  You can change the limit, or remove it altogether.
-
-@vindex eat-term-scrollback-size
-@defopt eat-term-scrollback-size
-This controls the size of scrollback region.  It is expressed in
-character.  If set to @var{size}, Eat won't store more than @var{size}
-characters in the scrollback region.  If set to @code{nil}, the
-scrollback region is unlimited.
-@end defopt
-
 @node Cursor Types
 @cindex cursor types
 @cindex types, cursor
 @cindex changing cursor
 @cindex customizing cursor
-@cindex cursor blinking
-@cindex blinking cursor
 @chapter Cursor Types
 
 In terminal, cursor can be of up to three type: ``visible'',
 ``invisible'' and ``very visible''.  ``Visible'' is the default cursor
 type, which is the cursor you usually see in a shell (unless the shell
 changes the cursor type).  ``Invisible'' is, as the name suggests,
-invisible, you can't see it.  ``Very visible'' cursor is a blinking
-cursor, programs use this to help you not lose the cursor.
+invisible, you can't see it.  ``Very visible'' cursor uses a more
+noticeable static shape.
 
 The cursor type can customized with three user options for the three
 types of cursor.  Each of the user options share the same format.
@@ -782,8 +419,6 @@ This controls the cursor shape of the ``invisible'' cursor type.
 @vindex eat-very-visible-cursor-type
 @defopt eat-very-visible-cursor-type
 This controls the cursor shape of the ``very visible'' cursor type.
-This cursor blinks, switching between the default cursor shape and a
-hollow box.
 @end defopt
 
 @vindex eat-vertical-bar-cursor-type
@@ -794,7 +429,7 @@ This controls the cursor shape of the ``vertical bar'' cursor type.
 @vindex eat-very-visible-vertical-bar-cursor-type
 @defopt eat-very-visible-vertical-bar-cursor-type
 This controls the cursor shape of the ``very visible vertical bar''
-cursor type.  This cursor blinks.
+cursor type.
 @end defopt
 
 @vindex eat-horizontal-bar-cursor-type
@@ -805,22 +440,8 @@ This controls the cursor shape of the ``horizontal bar'' cursor type.
 @vindex eat-very-visible-horizontal-bar-cursor-type
 @defopt eat-very-visible-horizontal-bar-cursor-type
 This controls the cursor shape of the ``very visible horizontal bar''
-cursor type.  This cursor blinks.
+cursor type.
 @end defopt
-
-The value type of all these user options is a list.  The list is of
-form (@var{cursor-on} @var{blinking-frequency} @var{cursor-off}).
-@var{blinking-frequency} is the frequency of blinking of cursor.  It
-is a number, controlling how many times the cursor will blink a
-second.  This can also be @code{nil}, this will disable cursor
-blinking.  @var{cursor-on} is the default cursor shape, only this
-shape is shown on the display when blinking is disabled.  This uses
-the same format as Emacs's @code{cursor-type} user option
-(@pxref{Cursor Display,,, emacs, GNU Emacs Manual}).  When
-@var{blinking-frequency} is a number, Eat will consult to the third
-element of the list, @var{cursor-off}, whose format same as
-@var{cursor-on}.  The blinking cursor switches between @var{cursor-on}
-and @var{cursor-off} cursor shape.
 
 @node Mouse Tracking
 @cindex mouse tracking
@@ -844,12 +465,9 @@ tracking.  This is enabled by default.
 
 @cindex yanking
 @findex eat-yank
-@kindex C-y @r{(``semi-char mode'')}
 @findex eat-yank-pop
-@kindex M-y @r{(``semi-char mode'')}
-Just like any other buffer, you can yank text in terminal with
-@kbd{C-y} (bound to @command{eat-yank}) or @kbd{M-y} (bound to
-@command{eat-yank-pop}) in ``semi-char mode''.
+You can yank text to the terminal with @command{eat-yank}.  You can
+also cycle the kill ring with @command{eat-yank-pop}.
 
 @cindex clipboard integration
 Programs can also request to the terminal to kill (@pxref{Killing,,,
@@ -994,98 +612,6 @@ like @code{eat-term-font-@var{n}}, which corresponds to color @var{n},
 and @var{n} can be any number between 0 and 9 (inclusive).  For
 example, the font 6 is can be changed by customizing
 @code{eat-term-font-6}.  Font 0 is the default font.
-
-@node Sixel
-@cindex sixel
-@chapter Sixel
-
-Eat can show Sixel graphics.  Sixel is a bitmap graphics format that
-can be used to display graphics in a terminal, for example, images, or
-plotting graphs.
-
-You can control the display of Sixel images by customizing the
-following user options.
-
-@vindex eat-sixel-scale
-@defopt eat-sixel-scale
-This is a non-negative number that specifies the amount to scale the
-image by.
-@end defopt
-
-@vindex eat-sixel-aspect-ratio
-@defopt eat-sixel-aspect-ratio
-This is a non-negative number that specifies the aspect ratio, i.e.
-the ratio of width and height of a Sixel pixel.  For example, the
-value of 2 means the width of a Sixel pixel is the double of its
-height.
-@end defopt
-
-Eat converts Sixel graphics to an image format Emacs can natively
-display.  This preference of image formats can be configured by
-customizing the @code{eat-sixel-render-formats} user option.
-
-@vindex eat-sixel-render-formats
-@defopt eat-sixel-render-formats
-List of formats to render Sixel, in order of preference.  Each element
-of the list is one of @code{xpm}, @code{svg}, @code{half-block},
-@code{background}, @code{none}.  @code{xpm} and @code{svg} means to
-use XPM and SVG image format respectively, @code{half-block} means to
-use UTF-8 half block characters, @code{background} means to just use
-background color, and @code{none} means to not render the image,
-instead just clear the area.
-@end defopt
-
-@node Blinking Text
-@cindex blinking text
-@cindex text, blinking
-@chapter Blinking Text
-
-Programs can request the terminal to blink some text.  This helps to
-get user attention.  But however, often this annoying to many people
-and also has accessiblity problems.  So this is disabled by default.
-
-@vindex eat-enable-blinking-text
-@defopt eat-enable-blinking-text
-This controls the blinking of text with blink attribute.  When set to
-non-@code{nil}, Eat arranges that text with blink attribute will
-blink at a certain interval.
-@end defopt
-
-@findex eat-blink-mode
-You can toggle blinking temporarily by toggle the buffer-local minor
-mode @command{eat-blink-mode}.  This is only effective in the buffer
-where the mode is toggled.
-
-By default, @code{eat-enable-blinking-text} is set to @code{nil}.
-This disables text blinking and causes the text with blink attribute
-to be displayed in inverse video (swapped foreground and background).
-
-@vindex eat-term-slow-blink
-@vindex eat-term-fast-blink
-Programs may also request to blink some text more rapidly that other
-blinking text.  When blinking is disabled, the face
-@code{eat-term-slow-blink} is used for slowly blinking text, and
-@code{eat-term-fast-blink} for rapidly blinking text.
-
-When blinking is enabled, by setting @code{eat-enable-blinking-text}
-to non-@code{nil} value, the following user options can be customized
-to change the rate of blinking:
-
-@vindex eat-slow-blink-frequency
-@defopt eat-slow-blink-frequency
-The blinking rate of slowly blinking text.  When set to a number N,
-it causes slowly blinking text to blink N times a second.  The value
-can also be a floating point number.  The default value is 2, meaning
-that the slowing text will blink two times a second.
-@end defopt
-
-@vindex eat-fast-blink-frequency
-@defopt eat-fast-blink-frequency
-The blinking rate of rapidly blinking text.  When set to a number N,
-it causes rapidly blinking text to blink N times a second.  The value
-can also be a floating point number as well.  The default value is 3,
-meaning that the slowing text will blink three times a second.
-@end defopt
 
 @node Performance Tuning
 @cindex performance tuning
@@ -1294,13 +820,6 @@ system.  Eat uses @samp{stty} to set various terminal settings
 including input echoing.  Please install the @samp{stty} program to
 fix the problem.
 
-@vindex eat-eshell-fallback-if-stty-not-available
-If you are using Eat from Eshell (@pxref{Eshell Terminal}), you might
-want to set @code{eat-eshell-fallback-if-stty-not-available} to handle
-such cases.  The user option can be set to three possible value,
-@code{t} to automatically fallback to bare Eshell when @samp{stty} is
-not available, @code{nil} to do nothing, and @samp{ask} to ask
-interactively.
 
 @node Not Responding
 @cindex not responding, eat
@@ -1321,8 +840,6 @@ terminal.
 
 The best way to fix it is to stop the program, so that Eat is not
 overloaded.  To avoid the problem in future, it is recommended to run
-those programs in faster terminals like bare Eshell (i.e. without
-Eat-Eshell), Comint, or external terminal emulators.
 
 @node Signaled an Error
 @cindex signaled an error
@@ -1438,8 +955,7 @@ information as possible about Emacs configuration.
 Precisely what you did.
 
 @item
-Trace output, if you can generate it.  (@xref{Tracing the Terminal}
-for instruction to generate it.)
+Any extra information that helps reproduce the issue.
 
 @item
 Hardware and operating system names and versions.
@@ -1457,43 +973,6 @@ is not critical to ``narrow down'' the example to the smallest
 possible -- anything that reproduces the bug will suffice.  (Of
 course, if you like doing experiments, the smaller the example, the
 better.)
-
-@node Tracing the Terminal
-@cindex tracing the terminal
-@cindex terminal tracing
-@cindex terminal recording
-@chapter Tracing the Terminal
-
-When you run into a bug and want to report it, you'll want to trace
-the terminal.  Tracing means recording all the terminal activity,
-including creation, output, resizing and deleting.
-
-@findex eat-trace-mode
-To enable tracing, enable the global minor mode
-@command{eat-trace-mode}.  This will trace all new terminals,
-including the terminal created inside Eshell.
-
-Trace output for each command will be output in a buffer named
-@samp{*eat-trace @var{buffer-name}*: @var{command}}, where
-@var{buffer-name} is the buffer showing the terminal, and
-@var{command} is the command run in the terminal.
-
-Only the terminals created after the trace mode is enabled are traced.
-So if you don't have the mode enabled when you have found a bug,
-tracing can't give you any information (as tracing is disabled,
-nothing has been recorded).
-
-While submitting bug reports, please include the whole output in the
-trace output buffer.  This contains many crucial information required
-to reproduce your bug.
-
-@findex eat-trace-replay
-You can replay the terminal by executing the command
-@command{eat-trace-replay} is the trace output buffer.  You can use
-the key @kbd{n} or the key @kbd{@key{down}} to show the next frame.
-This is not intended for ordinary users, it's documented here only to
-help you debug Eat.  You mustn't rely on the behavior of this
-functionality to do anything else.
 
 @part Part V:@* Appendices
 

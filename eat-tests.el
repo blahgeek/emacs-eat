@@ -60,10 +60,6 @@ will return t."
                                 ((member 'eat-term-bold list) 'bold)))
             :italic ,(not (not (member 'eat-term-italic
                                        (plist-get face :inherit))))
-            :blink ,(let ((list (plist-get face :inherit)))
-                      (cond
-                       ((member 'eat-term-slow-blink list) 'slow)
-                       ((member 'eat-term-fast-blink list) 'fast)))
             :font ,(let ((list (plist-get face :inherit)))
                      (cond ((member 'eat-term-font-0 list) 0)
                            ((member 'eat-term-font-1 list) 1)
@@ -100,7 +96,6 @@ will return t."
             (:crossed . nil)
             (:intensity . nil)
             (:italic . nil)
-            (:blink . nil)
             (:font . 0)))
          string)
         (setq pos next-pos)))
@@ -261,7 +256,7 @@ The following functions are available within BODY:
   PROPERTY VALUE...).  Here is all PROPERTY is applied on STRING from
   BEGIN to END.  PROPERTY should one of `:foreground', `:background'
   `:underline-type', `:underline-color', `:crossed', `:intensity',
-  `:italic', `:blink' and `:font'.  Any other properties are also
+  `:italic' and `:font'.  Any other properties are also
   applied but ignored by `should-term'."
   (declare (indent 1))
   (let ((term (make-symbol "term"))
@@ -4168,25 +4163,6 @@ automatic scrolling as a side effect."
                 "normal")
      :cursor '(6 . 1))))
 
-(ert-deftest eat-test-sgr-blink ()
-  "Test SGR blink attributes (both slow and fast blink)."
-  (eat--tests-with-term '()
-    (output "\e[5mslow\n")
-    (should-term
-     :display `(,(add-props "slow" `((0 . 4) :blink slow)))
-     :cursor '(2 . 1))
-    (output "\e[6mfast\n")
-    (should-term
-     :display `(,(add-props "slow" `((0 . 4) :blink slow))
-                ,(add-props "fast" `((0 . 4) :blink fast)))
-     :cursor '(3 . 1))
-    (output "\e[25mnormal\n")
-    (should-term
-     :display `(,(add-props "slow" `((0 . 4) :blink slow))
-                ,(add-props "fast" `((0 . 4) :blink fast))
-                "normal")
-     :cursor '(4 . 1))))
-
 (ert-deftest eat-test-sgr-conceal ()
   (eat--tests-with-term '()
     (output "\e[8mdefault\n")
@@ -4347,8 +4323,7 @@ automatic scrolling as a side effect."
                     :underline-type wave
                     :underline-color ,(face-foreground
                                        'eat-term-color-10 nil t)
-                    :blink fast
-                    :crossed t
+                                        :crossed t
                     :font 5)))
      :cursor '(2 . 1))
     (output "\e[0mnormal text 1\r\n")
@@ -4365,8 +4340,7 @@ automatic scrolling as a side effect."
                     :underline-type wave
                     :underline-color ,(face-foreground
                                        'eat-term-color-10 nil t)
-                    :blink fast
-                    :crossed t
+                                        :crossed t
                     :font 5))
                 "normal text 1")
      :cursor '(3 . 1))
@@ -4386,8 +4360,7 @@ automatic scrolling as a side effect."
                     :underline-type wave
                     :underline-color ,(face-foreground
                                        'eat-term-color-10 nil t)
-                    :blink fast
-                    :crossed t
+                                        :crossed t
                     :font 5))
                 "normal text 1"
                 ,(add-props
@@ -4399,8 +4372,7 @@ automatic scrolling as a side effect."
                     :italic t
                     :underline-type line
                     :underline-color "#0a5a2d"
-                    :blink slow
-                    :crossed t
+                                        :crossed t
                     :font 8)))
      :cursor '(4 . 1))
     (output "\e[mnormal text 2\n")
@@ -4417,8 +4389,7 @@ automatic scrolling as a side effect."
                     :underline-type wave
                     :underline-color ,(face-foreground
                                        'eat-term-color-10 nil t)
-                    :blink fast
-                    :crossed t
+                                        :crossed t
                     :font 5))
                 "normal text 1"
                 ,(add-props
@@ -4430,8 +4401,7 @@ automatic scrolling as a side effect."
                     :italic t
                     :underline-type line
                     :underline-color "#0a5a2d"
-                    :blink slow
-                    :crossed t
+                                        :crossed t
                     :font 8))
                 "normal text 2")
      :cursor '(5 . 1))))
@@ -4818,8 +4788,7 @@ automatic scrolling as a side effect."
                 ,(add-props
                   "ff"
                   '((0 . 2)
-                    :intensity faint
-                    :blink slow)))
+                    :intensity faint)))
      :cursor '(6 . 3))))
 
 (ert-deftest eat-test-insert-line ()

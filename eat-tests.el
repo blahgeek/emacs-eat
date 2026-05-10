@@ -5755,27 +5755,6 @@ Write plain text and newline to move cursor."
                             "frob")
                  :cursor '(1 . 7))))
 
-(ert-deftest eat-test-set-cwd ()
-  "Test setting current working directory."
-  (eat--tests-with-term '()
-    (let ((cwd "nowhere")
-          (host "ghost"))
-      (cl-letf (((symbol-function 'eat--set-cwd)
-                 (lambda (term hostname dir)
-                   (should (eq term (terminal)))
-                   (setq cwd dir)
-                   (setq host hostname))))
-        ;; file://HOST/PATH/.
-        (output "\e]7;file://frob/foo/bar/\e\\")
-        (should (string= host "frob"))
-        (should (string= cwd "/foo/bar/"))
-        (should-term :cursor '(1 . 1))
-        ;; file://HOST/PATH (note the missing trailing slash).
-        (output "\e]7;file://foo/bar/baz\e\\")
-        (should (string= host "foo"))
-        (should (string= cwd "/bar/baz/"))
-        (should-term :cursor '(1 . 1))))))
-
 (ert-deftest eat-test-handle-vt300-escape ()
   "Test escape sequences about read-chatset-vt300."
   (eat--tests-with-term '()

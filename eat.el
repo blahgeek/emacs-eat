@@ -343,17 +343,6 @@ This value is used by terminal programs to identify the terminal."
   :type 'string
   :group 'eat-term)
 
-(defcustom eat-enable-alternative-display t
-  "Non-nil means enable alternative display.
-
-Full screen programs often use alternative display to keep old
-contents on display unaltered."
-  :type 'boolean
-  :group 'eat-term)
-
-(make-obsolete-variable 'eat-enable-alternative-display
-                        "don't use it." "0.9" 'set)
-
 (defcustom eat-input-chunk-size 1024
   "Maximum size of chunk of data send at once.
 
@@ -1667,28 +1656,26 @@ STATE one of the `:invisible', `:block', `:blinking-block',
 
 (defun eat--t-enable-alt-disp ()
   "Enable alternative display."
-  ;; Effective only when alternative display is enabled by user.
-  (when eat-enable-alternative-display
-    ;; Make sure we not already in the alternative display.
-    (unless (eat--t-term-main-display eat--t-term)
-      ;; Store the current display, including scrollback.
-      (let ((main-disp (eat--t-copy-disp
-                        (eat--t-term-display eat--t-term))))
-        (setf (eat--t-disp-begin main-disp)
-              (- (eat--t-disp-begin main-disp) (point-min)))
-        (setf (eat--t-disp-old-begin main-disp)
-              (- (eat--t-disp-old-begin main-disp) (point-min)))
-        (setf (eat--t-disp-cursor main-disp)
-              (eat--t-copy-cur (eat--t-disp-cursor main-disp)))
-        (setf (eat--t-disp-saved-cursor main-disp)
-              (eat--t-copy-cur (eat--t-disp-saved-cursor main-disp)))
-        (setf (eat--t-cur-position (eat--t-disp-cursor main-disp))
-              (- (point) (point-min)))
-        (setf (eat--t-term-main-display eat--t-term)
-              (cons main-disp (buffer-string)))
-        ;; Delete everything, and move to the beginning of terminal.
-        (delete-region (point-min) (point-max))
-        (eat--t-goto 1 1)))))
+  ;; Make sure we not already in the alternative display.
+  (unless (eat--t-term-main-display eat--t-term)
+    ;; Store the current display, including scrollback.
+    (let ((main-disp (eat--t-copy-disp
+                      (eat--t-term-display eat--t-term))))
+      (setf (eat--t-disp-begin main-disp)
+            (- (eat--t-disp-begin main-disp) (point-min)))
+      (setf (eat--t-disp-old-begin main-disp)
+            (- (eat--t-disp-old-begin main-disp) (point-min)))
+      (setf (eat--t-disp-cursor main-disp)
+            (eat--t-copy-cur (eat--t-disp-cursor main-disp)))
+      (setf (eat--t-disp-saved-cursor main-disp)
+            (eat--t-copy-cur (eat--t-disp-saved-cursor main-disp)))
+      (setf (eat--t-cur-position (eat--t-disp-cursor main-disp))
+            (- (point) (point-min)))
+      (setf (eat--t-term-main-display eat--t-term)
+            (cons main-disp (buffer-string)))
+      ;; Delete everything, and move to the beginning of terminal.
+      (delete-region (point-min) (point-max))
+      (eat--t-goto 1 1))))
 
 (defun eat--t-disable-alt-disp (&optional dont-move-cursor)
   "Disable alternative display.

@@ -371,17 +371,13 @@ more colors, the display doesn't always support them.
 @cindex @env{TERM} environment variable
 @cindex environment variable, @env{TERM}
 Eat does the trick by setting the @env{TERM} environment variable of
-the program.  The value of @env{TERM} depends on the number of the
-available colors on the display.  This environment variable is
-controlled by the following user option:
+the program.  This environment variable is controlled by the
+following user option:
 
 @vindex eat-term-name
 @defopt eat-term-name
-The value of @env{TERM} environment variable as a string.  The value
-can also be a function taking no arguments, that function should
-return a string which used as the value of @env{TERM}.  The default
-value is @code{eat-term-get-suitable-term-name}, which is responsible
-for the behavior described above.
+The value of @env{TERM} environment variable as a string.  The default
+value is @samp{xterm-256color}.
 @end defopt
 
 @node Fonts
@@ -544,11 +540,12 @@ If your program says that it can't recognize the terminal, probably
 the @env{TERM} environment variable has a wrong value.
 
 @vindex eat-term-name
-Check the value of @env{TERM}, if it's not set to something like
-@samp{eat-...}, check the user option @code{eat-term-name}.  If that's
-correct that your shell might be changing the @env{TERM} environment
-variable.  If @code{eat-term-name} isn't correct, customize to a
-suitable value and try again, your problem should be fixed.
+Check the value of @env{TERM}, if it's not set to
+@samp{xterm-256color}, check the user option @code{eat-term-name}.  If
+that's correct then your shell might be changing the @env{TERM}
+environment variable.  If @code{eat-term-name} isn't correct,
+customize to a suitable value and try again, your problem should be
+fixed.
 
 
 @node Garbled Text

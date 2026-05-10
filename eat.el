@@ -331,20 +331,11 @@ responsive."
   :type 'number
   :group 'eat-ui)
 
-(defcustom eat-term-name #'eat-term-get-suitable-term-name
+(defcustom eat-term-name "xterm-256color"
   "Value for the `TERM' environment variable.
 
-The value can also be a function.  In that case, the function is
-called without any argument and the return value is used as the value.
-For example, this can set to `eat-term-get-suitable-term-name' to set
-the value according to the number of colors supported by the current
-display.
-
 This value is used by terminal programs to identify the terminal."
-  :type '(choice
-          (string :tag "Value")
-          (const :tag "Automatic" eat-term-get-suitable-term-name)
-          (function :tag "Function"))
+  :type 'string
   :group 'eat-term)
 
 (defcustom eat-term-inside-emacs (format "%s,eat" emacs-version)
@@ -3411,25 +3402,6 @@ EXCEPTIONS is a list of key sequences to not bind.  Don't use
               (bind (vector key)))))
     map)))
 
-(defun eat-term-name ()
-  "Return the value of `TERM' environment variable for Eat."
-  (if (stringp eat-term-name)
-      eat-term-name
-    (funcall eat-term-name)))
-
-(defun eat-term-get-suitable-term-name (&optional display)
-  "Return the most suitable value for `TERM' for DISPLAY.
-
-If the number of colors supported by display (as returned by
-`display-color-cells') is more than 256, return \"eat-truecolor\", if
-it is more than 8 but less than or equal to 256, return
-\"eat-256color\", if is more than 1 but less than or equal to 8,
-return \"eat-color\", otherwise return \"eat-mono\"."
-  (let ((colors (display-color-cells display)))
-    (cond ((> colors 256) "eat-truecolor")
-          ((> colors 8) "eat-256color")
-          ((> colors 1) "eat-color")
-          (t "eat-mono"))))
 
 (defun eat-term-filter-string (string)
   "Filter Eat's special text properties from STRING."
@@ -4352,7 +4324,7 @@ same Eat buffer.  The hook `eat-exec-hook' is run after each exec."
              (process-environment
               (nconc
                (list
-                (concat "TERM=" (eat-term-name))
+                (concat "TERM=" eat-term-name)
                 (concat "INSIDE_EMACS=" eat-term-inside-emacs))
                process-environment))
              (process-connection-type t)

@@ -3401,6 +3401,11 @@ STRING and ARG are passed to `yank-pop', which see."
     map)
   "Keymap for Eat char mode.")
 
+(define-minor-mode eat-follow-mode
+  "Follows the terminal output when enabled."
+  :init-value nil
+  :lighter " Follow")
+
 (define-minor-mode eat--char-mode
   "Minor mode implementing Eat char mode."
   :init-value nil
@@ -3411,6 +3416,7 @@ STRING and ARG are passed to `yank-pop', which see."
   "Switch to Emacs keybindings mode."
   (interactive)
   (eat--char-mode -1)
+  (eat-follow-mode -1)
   (setq buffer-read-only t)
   (force-mode-line-update))
 
@@ -3421,6 +3427,7 @@ STRING and ARG are passed to `yank-pop', which see."
     (error "Process not running"))
   (setq buffer-read-only nil)
   (eat--char-mode +1)
+  (eat-follow-mode +1)
   (force-mode-line-update))
 
 
@@ -3428,30 +3435,20 @@ STRING and ARG are passed to `yank-pop', which see."
 
 ;;;;; Major Mode.
 
-(defvar eat-synchronize-scroll-inhibit-functions
-  '(eat--synchronize-scroll-inhibit-default)
-  "List of functions to call to determine whether to inhibit synchronizing scroll.
-
-Each function should accept one argument, the window to check, and
-return non-nil if the window should not be synchronized.
-Each function is called with the terminal buffer as current buffer.")
-
-(defun eat--synchronize-scroll-inhibit-default (_window)
-  "Return t when WINDOW should not be synchronized."
-  (not eat--char-mode))
-
 (defun eat--synchronize-scroll (&optional force-selected)
   "Synchronize scrolling and point between terminal and window.
 
 When FORCE-SELECTED is non-nil, always sync the current selected window
 if the window is showing the current buffer."
   (when eat-terminal
+
+    ;; process the buffer
+    (when (or force-selected eat-follow-mode)
+      (goto-char (eat-term-display-cursor eat-terminal)))
+
+    ;; process windows
     (dolist (window (get-buffer-window-list))
-      (when (eq window (selected-window))
-        (when (or force-selected
-                  (not (run-hook-with-args-until-success 'eat-synchronize-scroll-inhibit-functions window)))
-          (goto-char (eat-term-display-cursor eat-terminal))))
-      (when (not (run-hook-with-args-until-success 'eat-synchronize-scroll-inhibit-functions window))
+      (when (or eat-follow-mode (and force-selected (eq window (selected-window))))
         (with-selected-window window
           (set-window-point nil (eat-term-display-cursor eat-terminal))
           (recenter

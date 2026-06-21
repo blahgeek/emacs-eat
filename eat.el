@@ -1091,6 +1091,48 @@ character to actually show.")
     ;; REVIEW: This probably needs to be updated.
 
     ;; start, inserted-till, end are the indices of the string, not column width
+    (cl-flet*
+        ((wrap-to-next-line ()
+           ;; Move to the next line for automatic-margin wrapping,
+           ;; scrolling if the cursor is at the bottom of the scroll
+           ;; region.
+           (when (= (eat--t-cur-y cursor) scroll-end)
+             (eat--t-scroll-up 1 'as-side-effect))
+           (if (= (eat--t-cur-y cursor) scroll-end)
+               (eat--t-carriage-return)
+             (if (= (point) (point-max))
+                 (insert #("\n" 0 1 (eat--t-wrap-line t)))
+               (put-text-property (point) (1+ (point))
+                                  'eat--t-wrap-line t)
+               (forward-char))
+             (1value (setf (eat--t-cur-x cursor) 1))
+             (cl-incf (eat--t-cur-y cursor))))
+         (advance (cols)
+           ;; Move the cursor forward COLS columns and delete the
+           ;; characters that were overwritten.
+           (cl-incf (eat--t-cur-x cursor) cols)
+           (if (eat--t-term-ins-mode eat--t-term)
+               (delete-region
+                (save-excursion
+                  (eat--t-col-motion (- (eat--t-disp-width disp)
+                                        (1- (eat--t-cur-x cursor))))
+                  ;; Make sure the point is safe.
+                  (eat--t-move-before-to-safe)
+                  (point))
+                (car (eat--t-eol)))
+             (delete-region (point) (min (+ cols (point))
+                                         (car (eat--t-eol))))
+             ;; Replace any partially-overwritten character with
+             ;; spaces.
+             (eat--t-fix-partial-multi-col-char))
+           ;; If the cursor went past the right edge, either wrap to
+           ;; the next line (automatic margin) or stay at the last
+           ;; column (the deferred wrap is resolved later).
+           (when (> (eat--t-cur-x cursor) (eat--t-disp-width disp))
+             (if (not (eat--t-term-auto-margin eat--t-term))
+                 (eat--t-cur-left 1)
+               (when (< inserted-till end)
+                 (wrap-to-next-line))))))
     (while (< inserted-till end)
       ;; Insert STR, and record the width of STR inserted
       ;; successfully.
@@ -1142,8 +1184,12 @@ character to actually show.")
                  (if (or (null next-multi-col)
                          (< (- max wrote) (cdr next-multi-col)))
                      ;; Either everything is done, or we reached
-                     ;; the limit.
-                     (+ written max)
+                     ;; the limit.  Report the columns actually
+                     ;; written (`wrote'), not the whole budget
+                     ;; (`max'): when we stopped because a wide
+                     ;; character didn't fit, `max' would over-count
+                     ;; the advance and desync the cursor column.
+                     (+ written wrote)
                    ;; There are many characters which are too
                    ;; narrow for `char-width' to return 1.  XTerm,
                    ;; Kitty and St seems to ignore them, so we too.
@@ -1169,36 +1215,46 @@ character to actually show.")
                    (write (- max wrote (cdr next-multi-col))
                           (+ written wrote
                              (cdr next-multi-col))))))))
-        (cl-incf (eat--t-cur-x cursor) ins-count)
-        (if (eat--t-term-ins-mode eat--t-term)
-            (delete-region
-             (save-excursion
-               (eat--t-col-motion (- (eat--t-disp-width disp)
-                                     (1- (eat--t-cur-x cursor))))
-               ;; Make sure the point is safe.
-               (eat--t-move-before-to-safe)
-               (point))
-             (car (eat--t-eol)))
-          (delete-region (point) (min (+ ins-count (point))
-                                      (car (eat--t-eol))))
-          ;; Replace any partially-overwritten character with
-          ;; spaces.
-          (eat--t-fix-partial-multi-col-char))
-        (when (> (eat--t-cur-x cursor) (eat--t-disp-width disp))
-          (if (not (eat--t-term-auto-margin eat--t-term))
-              (eat--t-cur-left 1)
-            (when (< inserted-till end)
-              (when (= (eat--t-cur-y cursor) scroll-end)
-                (eat--t-scroll-up 1 'as-side-effect))
-              (if (= (eat--t-cur-y cursor) scroll-end)
-                  (eat--t-carriage-return)
-                (if (= (point) (point-max))
-                    (insert #("\n" 0 1 (eat--t-wrap-line t)))
-                  (put-text-property (point) (1+ (point))
-                                     'eat--t-wrap-line t)
-                  (forward-char))
-                (1value (setf (eat--t-cur-x cursor) 1))
-                (cl-incf (eat--t-cur-y cursor))))))))))
+        (if (not (zerop ins-count))
+            (advance ins-count)
+          ;; Nothing was written this round: the next character is a
+          ;; multi-column character that doesn't fit in the columns
+          ;; left on the current line, or the cursor is sitting past
+          ;; the right edge (a deferred wrap).  Make forward progress
+          ;; so the loop can't spin forever.
+          (when (< inserted-till end)
+            (let ((next-multi-col (car multi-col-char-indices)))
+              (cond
+               ;; A zero-width character: just consume it.
+               ((and next-multi-col (zerop (cdr next-multi-col)))
+                (cl-incf inserted-till)
+                (setf multi-col-char-indices
+                      (cdr multi-col-char-indices)))
+               ;; Automatic margin enabled: wrap to the next line,
+               ;; keeping the current line's content intact, then
+               ;; retry the character on the fresh line.
+               ((eat--t-term-auto-margin eat--t-term)
+                (goto-char (car (eat--t-eol)))
+                (wrap-to-next-line))
+               ;; Automatic margin disabled and a wide character can
+               ;; never fit in the single remaining column: drop it,
+               ;; writing a space in its place like XTerm does.
+               (next-multi-col
+                (insert (propertize " " 'face face
+                                    'font-lock-face face))
+                (cl-incf inserted-till)
+                (setf multi-col-char-indices
+                      (cdr multi-col-char-indices))
+                (advance 1))
+               ;; Automatic margin disabled with the cursor past the
+               ;; right edge (deferred wrap): back off to the last
+               ;; column so the next character overwrites it.
+               ((> (eat--t-cur-x cursor) (eat--t-disp-width disp))
+                (eat--t-cur-left 1))
+               ;; Defensive: this shouldn't happen, but never spin.
+               (t (setq inserted-till end))))))))
+    ;; End of `cl-flet*'.
+    )))
 
 (defun eat--t-horizontal-tab (&optional n)
   "Go to the Nth next tabulation stop.
@@ -1375,23 +1431,31 @@ N defaults to 0.  When N is 0, erase cursor to end of line.  When N is
               (and (eat--t-face-bg face)
                    (eat--t-face-face face)))))))
       (1
-       ;; Delete beginning of line to cursor position (inclusive).
-       (delete-region (car (eat--t-bol))
-                      (if (or (= (point) (point-max))
-                              (= (char-after) ?\n))
-                          (point)
-                        (1+ (point))))
-       ;; Fill the region with spaces, use SGR background attribute
-       ;; if set.
-       (let ((cursor (eat--t-disp-cursor
-                      (eat--t-term-display eat--t-term))))
-         (eat--t-repeated-insert ?\s (eat--t-cur-x cursor)
+       ;; Whether the cursor is past the end of line (e.g. at the
+       ;; deferred wrap position with automatic margin enabled).  In
+       ;; that case there is no character under the cursor to erase.
+       (let* ((at-eol (or (= (point) (point-max))
+                          (= (char-after) ?\n)))
+              ;; End of the region to erase: cursor position
+              ;; (inclusive) or the cursor position itself when it is
+              ;; past the end of line.
+              (erase-end (if at-eol (point) (1+ (point))))
+              ;; Number of columns being erased; re-fill with exactly
+              ;; this many spaces so that the line width is preserved.
+              (count (- erase-end (car (eat--t-bol)))))
+         ;; Delete beginning of line to cursor position (inclusive).
+         (delete-region (car (eat--t-bol)) erase-end)
+         ;; Fill the region with spaces, use SGR background attribute
+         ;; if set.
+         (eat--t-repeated-insert ?\s count
                                  (and (eat--t-face-bg face)
-                                      (eat--t-face-face face))))
-       ;; We erased the character at the cursor position, so after
-       ;; fill with spaces we are still off by one column; so move a
-       ;; column backward.
-       (backward-char))
+                                      (eat--t-face-face face)))
+         ;; If we erased the character at the cursor position, then
+         ;; after filling with spaces we are off by one column; so
+         ;; move a column backward.  When the cursor was past the end
+         ;; of line, no such character was erased, so don't move.
+         (unless at-eol
+           (backward-char))))
       (2
        ;; Delete whole line.
        (delete-region (car (eat--t-bol)) (car (eat--t-eol)))

@@ -353,6 +353,65 @@ margin."
                             "and some more")
                  :cursor '(5 . 14))))
 
+(ert-deftest eat-test-wide-char-at-right-edge-no-margin ()
+  "Test a wide char at the right edge with automatic margin disabled.
+
+The wide character can't fit in the single remaining column, so it is
+dropped (a space takes its place) instead of looping forever."
+  (eat--tests-with-term '(:width 5 :height 3)
+    (output "1234")
+    (output "\e[?7l")                  ; DECRST 7: disable automatic margin
+    (output "🐶")                     ; a dog emoji (double-width)
+    (output "Z")
+    (should-term :display '("1234Z")
+                 :cursor '(1 . 5))))
+
+(ert-deftest eat-test-wide-char-wrap-preserves-last-column ()
+  "Test wrapping a wide char that doesn't fit at the right edge.
+
+The existing content of the line must stay intact and the wide
+character must move to the next line."
+  (eat--tests-with-term '(:width 5 :height 3)
+    (output "12345")
+    (output "\e[5G")                   ; CHA: move cursor to column 5
+    (output "🐶")                     ; a dog emoji (double-width)
+    (should-term :display '("12345"
+                            " 🐶")
+                 :cursor '(2 . 3))))
+
+(ert-deftest eat-test-wide-char-deferred-wrap-then-no-margin ()
+  "Regression test for the crash reported with xonsh.
+
+A wide character that leaves the cursor near the right edge, followed
+by disabling automatic margin and writing another wide character that
+doesn't fit, used to walk the point backwards until a cursor motion
+tripped an assertion.  It must instead make progress without error."
+  (eat--tests-with-term '(:width 5 :height 3)
+    (output "🐶ab")                   ; a dog emoji (double-width) then "ab"
+    (should-term :display '(" 🐶ab")
+                 :cursor '(1 . 5))
+    (output "\e[?7l")                  ; DECRST 7: disable automatic margin
+    (output "x🐶")                    ; "x" fills the last column, the dog
+                                      ; no longer fits
+    ;; No error; the dog that doesn't fit becomes a trailing space.
+    (should-term :display '(" 🐶ab ")
+                 :cursor '(1 . 5))))
+
+(ert-deftest eat-test-deferred-wrap-overwrite-no-margin ()
+  "Test that the deferred wrap is resolved when margin is disabled.
+
+With automatic margin enabled, filling the line leaves the cursor at
+the deferred wrap position.  After disabling automatic margin, the
+next character must overwrite the last column rather than be dropped."
+  (eat--tests-with-term '(:width 3 :height 2)
+    (output "abc")
+    (should-term :display '("abc")
+                 :cursor '(1 . 3))
+    (output "\e[?7l")                  ; DECRST 7: disable automatic margin
+    (output "d")
+    (should-term :display '("abd")
+                 :cursor '(1 . 3))))
+
 (ert-deftest eat-test-insert-mode ()
   "Test automatic margin and toggling it."
   (eat--tests-with-term '()
@@ -5222,6 +5281,34 @@ automatic scrolling as a side effect."
                   '((0 . 20)
                     :background "#ffffff")))
      :cursor '(6 . 6))))
+
+(ert-deftest eat-test-erase-in-line-at-deferred-wrap ()
+  "Test \\e[1K when the cursor is past the end of line.
+
+With automatic margin enabled, writing to the last column leaves the
+cursor at the deferred wrap position (one column past the last cell).
+Erasing the beginning of the line to the cursor must not make the line
+wider than the display, otherwise the bookkeeping of the cursor column
+becomes inconsistent and a later cursor motion fails."
+  (eat--tests-with-term '(:width 5 :height 3)
+    ;; Fill the line completely, leaving the cursor at the deferred
+    ;; wrap position.
+    (output "abcde")
+    (should-term :display '("abcde")
+                 :cursor '(1 . 5))
+    ;; Erase beginning of line to cursor.  The line must stay exactly
+    ;; as wide as the display (5 columns), not grow to 6.
+    (output "\e[1K")                   ; EL 1: erase from line start to cursor
+    (should-term :display '("")
+                 :cursor '(1 . 5))
+    ;; A cursor motion afterwards must not raise an error.
+    (output "\e[2D")                   ; CUB: move cursor 2 columns left
+    (should-term :display '("")
+                 :cursor '(1 . 4))
+    ;; Writing after the erase keeps the display consistent.
+    (output "xy")
+    (should-term :display '("   xy")
+                 :cursor '(1 . 5))))
 
 (ert-deftest eat-test-erase-in-display ()
   "Test erase in display control function."

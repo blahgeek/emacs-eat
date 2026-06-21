@@ -412,6 +412,53 @@ next character must overwrite the last column rather than be dropped."
     (should-term :display '("abd")
                  :cursor '(1 . 3))))
 
+(ert-deftest eat-test-wide-char-insert-mode-no-margin ()
+  "Test a wide char that doesn't fit, in insert mode without margin.
+
+Writing a wide character to the last column leaves the cursor at the
+deferred wrap position; with automatic margin disabled and insert mode
+enabled, writing more wide characters must resolve the deferred wrap
+and drop the characters that don't fit, instead of walking the point
+backwards until a cursor motion fails."
+  (eat--tests-with-term '(:width 3 :height 5)
+    (output "\e[4h")                   ; SM 4: enable insert mode
+    (output "🐶x")                    ; dog (double-width) fills cols 1-2, x col 3
+    (output "\e[?7l")                  ; DECRST 7: disable automatic margin
+    (output "🐶🐶🐶")                  ; none of these fit; must not error
+    (should-term :display '(" 🐶 ")
+                 :cursor '(1 . 3))))
+
+(ert-deftest eat-test-overwrite-wide-char-orphan-padding ()
+  "Test overwriting a wide char's body with a narrow one.
+
+Writing a narrow character over the second half of a double-width
+character leaves the (invisible) leading padding orphaned.  A
+subsequent write at that position must clean up the orphaned padding
+instead of reading a non-existent character width."
+  (eat--tests-with-term '(:width 3 :height 3)
+    (output "\e[C")                    ; CUF: move cursor right (to column 2)
+    (output "\e[?7l")                  ; DECRST 7: disable automatic margin
+    (output "🐶x")                    ; dog at col 2 doesn't fit; x lands at col 3
+    (output "\r")                     ; carriage return to column 1
+    (output "a")                      ; overwrite; must not error
+    (should-term :display '("a x")
+                 :cursor '(1 . 2))))
+
+(ert-deftest eat-test-cursor-in-wide-char-then-erase ()
+  "Test erasing from the middle of a wide char, then writing.
+
+Moving the cursor onto the second half of a double-width character and
+erasing to end of line splits the character, leaving orphaned padding
+at the end of the line.  Writing afterwards must not run past the end
+of the buffer."
+  (eat--tests-with-term '(:width 6 :height 3)
+    (output "a🐶b")                   ; "a" + dog (cols 2-3) + "b" (col 4)
+    (output "\e[3G")                  ; CHA: move to column 3 (middle of the dog)
+    (output "\e[K")                   ; EL: erase cursor to end of line
+    (output "cd")                     ; write again; must not error
+    (should-term :display '("a cd")
+                 :cursor '(1 . 5))))
+
 (ert-deftest eat-test-insert-mode ()
   "Test automatic margin and toggling it."
   (eat--tests-with-term '()

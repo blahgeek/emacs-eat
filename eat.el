@@ -1613,14 +1613,22 @@ character or its the internal invisible spaces."
   "If the position isn't safe, make it safe by replacing with spaces."
   (let ((moved (eat--t-move-before-to-safe)))
     (unless (zerop moved)
-      (let ((width (get-text-property
-                    (point) 'eat--t-char-width)))
+      (let* ((width (get-text-property
+                     (point) 'eat--t-char-width))
+             (start (point))
+             ;; The wide character may have been partially erased,
+             ;; leaving fewer buffer positions than its nominal width.
+             ;; Don't run past the end of line in that case.
+             (end (min (+ start width) (car (eat--t-eol))))
+             (count (- end start)))
         (cl-assert width)
-        (delete-region (point) (+ (point) width))
+        (delete-region start end)
         (eat--t-repeated-insert
-         ?\s width (eat--t-face-face
+         ?\s count (eat--t-face-face
                     (eat--t-term-face eat--t-term)))
-        (backward-char (- width moved))))))
+        ;; Return to the column we started from (clamped to what is
+        ;; left of the replaced character).
+        (goto-char (+ start (min moved count)))))))
 
 (defun eat--t-fix-partial-multi-col-char (&optional preserve-face)
   "Replace any partial multi-column character with spaces.
@@ -1631,18 +1639,35 @@ If PRESERVE-FACE is non-nil, preserve original face."
                 (eat--t-face-face
                  (eat--t-term-face eat--t-term)))))
     (if (get-text-property (point) 'eat--t-invisible-space)
-        (let ((start-pos (point))
-              (count nil))
-          (goto-char (or (next-single-property-change
-                          (point) 'eat--t-invisible-space)
-                         (point-max)))
-          (setq count (- (1+ (point)) start-pos))
-          ;; Make sure we really overwrote the character
-          ;; partially.
-          (when (< count (get-text-property
-                          (point) 'eat--t-char-width))
-            (delete-region start-pos (1+ (point)))
-            (eat--t-repeated-insert ?\s count face))
+        (let* ((start-pos (point))
+               ;; End of the run of invisible padding spaces.  The
+               ;; character there is normally the multi-column
+               ;; character the padding belongs to.
+               (run-end (or (next-single-property-change
+                             (point) 'eat--t-invisible-space)
+                            (point-max)))
+               ;; Its width, unless the padding has been orphaned
+               ;; (the multi-column character itself overwritten by a
+               ;; narrower one, or nothing left after the padding).
+               (cw (and (< run-end (point-max))
+                        (get-text-property run-end 'eat--t-char-width))))
+          (cond
+           ;; The multi-column character is still intact; nothing to
+           ;; fix.
+           ((and cw (>= (- (1+ run-end) start-pos) cw)))
+           ;; It was partially overwritten: replace the padding and
+           ;; the leftover character with spaces.
+           (cw
+            (let ((count (- (1+ run-end) start-pos)))
+              (delete-region start-pos (1+ run-end))
+              (eat--t-repeated-insert ?\s count face)))
+           ;; The character was overwritten by a narrower one (or
+           ;; erased), leaving orphaned padding: replace just the
+           ;; padding with spaces.
+           (t
+            (let ((count (- run-end start-pos)))
+              (delete-region start-pos run-end)
+              (eat--t-repeated-insert ?\s count face))))
           (goto-char start-pos))
       ;; Detect the case where we have deleted all the invisible
       ;; spaces before, but not the multi-column character itself.
@@ -1875,6 +1900,12 @@ character to actually show.")
                ((eat--t-term-auto-margin eat--t-term)
                 (goto-char (car (eat--t-eol)))
                 (wrap-to-next-line))
+               ;; Automatic margin disabled with the cursor past the
+               ;; right edge (deferred wrap): back off to the last
+               ;; column first, then retry; the character either fits
+               ;; or is handled by the branch below.
+               ((> (eat--t-cur-x cursor) (eat--t-disp-width disp))
+                (eat--t-cur-left 1))
                ;; Automatic margin disabled and a wide character can
                ;; never fit in the single remaining column: drop it,
                ;; writing a space in its place like XTerm does.
@@ -1885,11 +1916,6 @@ character to actually show.")
                 (setf multi-col-char-indices
                       (cdr multi-col-char-indices))
                 (advance 1))
-               ;; Automatic margin disabled with the cursor past the
-               ;; right edge (deferred wrap): back off to the last
-               ;; column so the next character overwrites it.
-               ((> (eat--t-cur-x cursor) (eat--t-disp-width disp))
-                (eat--t-cur-left 1))
                ;; Defensive: this shouldn't happen, but never spin.
                (t (setq inserted-till end))))))))
     ;; End of `cl-flet*'.

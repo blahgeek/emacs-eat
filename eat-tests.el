@@ -5184,7 +5184,28 @@ compensating backward movement of `eat--t-goto-eol' is impossible, so
                             ""
                             "ccc"
                             "ddd")
-                 :cursor '(1 . 1))))
+                 :cursor '(1 . 1)))
+  ;; Case 3: SGR background set, cursor on the last row of the
+  ;; display, delete that single row.  The new background-filled line
+  ;; must appear at the bottom row, without any extra line being
+  ;; added to the display (the buggy "back up one line" path used to
+  ;; produce HEIGHT + 1 lines here).
+  (eat--tests-with-term '()
+    (output "\e[6;1H\e[44m\e[M")
+    (should (= (eat-term-display-beginning (terminal)) 1))
+    (should-term
+     :display `("" "" "" "" ""
+                ,(add-props
+                  "                    "
+                  `((0 . 20)
+                    :background ,(face-foreground
+                                  'eat-term-color-4 nil t))))
+     :cursor '(6 . 1))
+    ;; The display must not contain more lines than its height.
+    (should
+     (<= (count-lines (eat-term-display-beginning (terminal))
+                      (point-max))
+         6))))
 
 (ert-deftest eat-test-erase-in-line ()
   "Test erase in line control function."

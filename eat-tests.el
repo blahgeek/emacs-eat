@@ -5150,6 +5150,42 @@ automatic scrolling as a side effect."
                     :background "#646432")))
      :cursor '(1 . 1))))
 
+(ert-deftest eat-test-delete-line-whole-scroll-region-from-top ()
+  "Test deleting all lines of the scroll region from its first row.
+
+This currently signals `wrong-type-argument' from within
+`eat--t-delete-line': when N deletes through the bottom of the scroll
+region, the line count `move' becomes -1, and if the cursor line is
+also the first line of the buffer (no scrollback above), the
+compensating backward movement of `eat--t-goto-eol' is impossible, so
+\(- move moved) is -1 and is passed to `eat--t-repeated-insert', i.e.
+\(make-string -1 ?\\n)."
+  ;; Case 1: SGR background set, delete every line of the display
+  ;; (the default scroll region) with the cursor at (1, 1).  The
+  ;; display should simply be filled with the background color.
+  (eat--tests-with-term '()
+    (output "foo\nbar")
+    (output "\e[H\e[44m\e[6M")
+    (should-term
+     :display (make-list
+               6 (add-props
+                  "                    "
+                  `((0 . 20)
+                    :background ,(face-foreground
+                                  'eat-term-color-4 nil t))))
+     :cursor '(1 . 1)))
+  ;; Case 2: no background, but a scroll region that ends above the
+  ;; bottom of the display.  Deleting all lines of the region must
+  ;; blank the region and keep the lines below it unmoved.
+  (eat--tests-with-term '()
+    (output "aaa\nbbb\nccc\nddd")
+    (output "\e[1;2r\e[H\e[2M")
+    (should-term :display '(""
+                            ""
+                            "ccc"
+                            "ddd")
+                 :cursor '(1 . 1))))
+
 (ert-deftest eat-test-erase-in-line ()
   "Test erase in line control function."
   (eat--tests-with-term '()

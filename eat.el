@@ -1897,16 +1897,35 @@ position."
                  (moved (eat--t-goto-eol move)))
             (when (or (/= (point) (point-max))
                       (eat--t-face-bg face))
-              ;; Move to the end of scroll region.
-              (eat--t-repeated-insert ?\n (- move moved))
-              ;; Insert enough new lines, fill them when SGR
-              ;; background attribute is set.
-              (if (not (eat--t-face-bg face))
-                  (eat--t-repeated-insert ?\n n)
-                (dotimes (_ n)
-                  (insert ?\n)
-                  (eat--t-repeated-insert ?\s (eat--t-disp-width disp)
-                                          (eat--t-face-face face)))))
+              (if (< (- move moved) 0)
+                  ;; MOVE is -1: the whole rest of the scroll region
+                  ;; was deleted, and there was no previous line to
+                  ;; back up to (the cursor line was the first line
+                  ;; of the buffer), so MOVED is 0.  Insert the N new
+                  ;; lines right at point instead.
+                  (if (not (eat--t-face-bg face))
+                      (eat--t-repeated-insert ?\n n)
+                    (dotimes (i n)
+                      (unless (zerop i)
+                        (insert ?\n))
+                      (eat--t-repeated-insert
+                       ?\s (eat--t-disp-width disp)
+                       (eat--t-face-face face)))
+                    ;; Keep any following content (lines below the
+                    ;; scroll region) on its own line.
+                    (when (/= (point) (point-max))
+                      (insert ?\n)))
+                ;; Move to the end of scroll region.
+                (eat--t-repeated-insert ?\n (- move moved))
+                ;; Insert enough new lines, fill them when SGR
+                ;; background attribute is set.
+                (if (not (eat--t-face-bg face))
+                    (eat--t-repeated-insert ?\n n)
+                  (dotimes (_ n)
+                    (insert ?\n)
+                    (eat--t-repeated-insert
+                     ?\s (eat--t-disp-width disp)
+                     (eat--t-face-face face))))))
             (goto-char pos))))
       ;; Go to column where cursor is to preserve cursor position, use
       ;; spaces if needed to reach the position.

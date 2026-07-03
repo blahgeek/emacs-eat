@@ -215,6 +215,66 @@ to string from BEGIN to END."
                          (cdr interval) string))
   string)
 
+(defun eat--tests-check-consistency (terminal)
+  "Check internal display consistency of TERMINAL.
+
+Check that the display doesn't contain more lines than the display
+height, that no line is wider than the display width, that the
+invisible padding of multi-column characters is always attached to
+its character, and that the cursor coordinates are within the bounds
+of the display and consistent with the position of point."
+  (let* ((disp (eat--t-term-display terminal))
+         (cursor (eat--t-disp-cursor disp))
+         (width (eat--t-disp-width disp))
+         (height (eat--t-disp-height disp))
+         (y (eat--t-cur-y cursor))
+         (x (eat--t-cur-x cursor))
+         (begin (marker-position (eat--t-disp-begin disp)))
+         (cpos (marker-position (eat--t-cur-position cursor))))
+    (should (<= 1 y height))
+    (should (<= 1 x (1+ width)))
+    ;; The display beginning must be at the beginning of a line.
+    (should (or (= begin (point-min))
+                (= (char-before begin) ?\n)))
+    ;; The display must not contain more lines than its height.
+    (should (<= (count-lines begin (point-max)) height))
+    ;; The cursor must be on the row the cursor position marker is
+    ;; on.
+    (save-excursion
+      (goto-char begin)
+      (let ((cy 1))
+        (while (search-forward "\n" cpos t)
+          (cl-incf cy))
+        (should (= cy y))))
+    ;; Lines must fit in the display width, and the invisible
+    ;; padding of a multi-column character must always be followed
+    ;; by the character itself.
+    (save-excursion
+      (goto-char begin)
+      (let ((col 0) (pad 0))
+        (while (< (point) (point-max))
+          (let ((c (char-after)))
+            (cond
+             ((= c ?\n)
+              (should (zerop pad))
+              (setq col 0))
+             ((get-text-property (point) 'eat--t-invisible-space)
+              (cl-incf pad)
+              (cl-incf col))
+             (t
+              (let ((cw (get-text-property
+                         (point) 'eat--t-char-width)))
+                (if cw
+                    (progn
+                      (should (= pad (1- cw)))
+                      (cl-incf col))
+                  (should (zerop pad))
+                  (cl-incf col (max (char-width c) 1))))
+              (setq pad 0))))
+          (should (<= col width))
+          (forward-char))
+        (should (zerop pad))))))
+
 (defmacro eat--tests-with-term (spec &rest body)
   "Make a temporary terminal with SPEC and run BODY with it.
 
@@ -5955,6 +6015,218 @@ Write plain text and newline to move cursor."
      :cursor '(1 . 12))))
 
 
+;;;;; Display Consistency Tests.
+
+(ert-deftest eat-test-scroll-up-partial-region ()
+  "Test scrolling up a region that doesn't cover the whole display.
+
+Scrolled-out lines must not be moved to the scrollback area, the
+lines below the scroll region must stay unmoved, and the cursor must
+keep pointing to the same text, even when it is below the scroll
+region."
+  (eat--tests-with-term '(:width 8 :height 4)
+    (output "aaa\r\nbbb\r\nccc\r\nddd")
+    (output "\e[1;3r\e[4;1H")
+    (should-term :display '("aaa" "bbb" "ccc" "ddd")
+                 :cursor '(4 . 1))
+    (output "\e[2S")
+    (eat--tests-check-consistency (terminal))
+    ;; No scrollback, region scrolled, below-region line unmoved.
+    (should-term :display '("ccc" "" "" "ddd")
+                 :cursor '(4 . 1))
+    ;; Overwriting at the cursor must overwrite "ddd".
+    (output "x")
+    (should-term :display '("ccc" "" "" "xdd")
+                 :cursor '(4 . 2))))
+
+(ert-deftest eat-test-scroll-up-partial-region-empty-buffer ()
+  "Test scrolling up a partial scroll region with mostly empty display.
+
+When the buffer has fewer lines than the scroll region, scrolling
+must not corrupt the display by inserting newlines above the region."
+  (eat--tests-with-term '(:width 4 :height 6)
+    (output "\e[2;5r\e[C\e[9S")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("")
+                 :cursor '(1 . 2))))
+
+(ert-deftest eat-test-line-feed-below-scroll-region ()
+  "Test line feed with the cursor below the scroll region.
+
+At the bottom of the display but below the scroll region, a line feed
+must not scroll anything; it just moves the cursor to column one."
+  (eat--tests-with-term '(:width 12 :height 6)
+    (output "top\e[2;5r\e[6;4H")
+    (should-term :display '("top" "" "" "" "" "")
+                 :cursor '(6 . 4))
+    (output "\n")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("top" "" "" "" "" "")
+                 :cursor '(6 . 1))
+    ;; The same for index.
+    (output "\e[6;4H" "\eD")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("top" "" "" "" "" "")
+                 :cursor '(6 . 4))))
+
+(ert-deftest eat-test-reverse-index-above-scroll-region ()
+  "Test reverse index with the cursor above the scroll region.
+
+At the top of the display but above the scroll region, a reverse
+index must not scroll anything."
+  (eat--tests-with-term '(:width 12 :height 6)
+    (output "aaa\r\nbbb\e[3;5r\e[1;2H")
+    (should-term :display '("aaa" "bbb")
+                 :cursor '(1 . 2))
+    (output "\eM")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("aaa" "bbb")
+                 :cursor '(1 . 2))))
+
+(ert-deftest eat-test-delete-line-with-upper-scroll-region ()
+  "Test DL with a scroll region that doesn't start at the first row.
+
+When the cursor is at the bottom of a scroll region starting below
+the first row, CSI M must only clear that row and must not join or
+delete the lines above the cursor."
+  (eat--tests-with-term '(:width 11 :height 6)
+    (output "a\r\nb\r\nc\r\nd\r\ne\r\nf")
+    (output "\e[3;6r\e[6;1H\e[M")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("a" "b" "c" "d" "e" "")
+                 :cursor '(6 . 1))))
+
+(ert-deftest eat-test-delete-line-bg-after-blank-lines ()
+  "Test DL with background on a display made of blank lines.
+
+The display must never end up with more lines than its height."
+  (eat--tests-with-term '(:width 9 :height 5)
+    (output "\e[9L" "\e[44m\e[M")
+    (eat--tests-check-consistency (terminal))
+    (should-term
+     :display `("" "" "" ""
+                ,(add-props
+                  "         "
+                  `((0 . 9)
+                    :background ,(face-foreground
+                                  'eat-term-color-4 nil t))))
+     :cursor '(1 . 1))))
+
+(ert-deftest eat-test-erase-with-wide-chars ()
+  "Test erase controls when the cursor is on a multi-column character.
+
+Erasing must never leave the invisible padding of a multi-column
+character without the character, or the character without its
+padding."
+  ;; Erase to end of display with cursor on the second column of a
+  ;; wide character.
+  (eat--tests-with-term '(:width 8 :height 5)
+    (output "🐶🐶🐶" "\e[D\e[0J")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '(" 🐶 🐶")
+                 :cursor '(1 . 6)))
+  ;; Erase to end of line, likewise.
+  (eat--tests-with-term '(:width 8 :height 5)
+    (output "🐶🐶🐶" "\e[D\e[K")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '(" 🐶 🐶")
+                 :cursor '(1 . 6)))
+  ;; Erase from beginning of line to a cursor sitting on a wide
+  ;; character: the whole character must be erased.
+  (eat--tests-with-term '(:width 8 :height 5)
+    (output "🐶🐶🐶" "\e[1;3H\e[1K")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("     🐶")
+                 :cursor '(1 . 3)))
+  ;; The same for erase from display beginning.
+  (eat--tests-with-term '(:width 8 :height 5)
+    (output "🐶🐶🐶" "\e[1;3H\e[1J")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("     🐶")
+                 :cursor '(1 . 3))))
+
+(ert-deftest eat-test-erase-in-disp-at-eol ()
+  "Test erasing from display beginning with the cursor at end of line.
+
+The erase must not delete the newline after the cursor, which would
+join the cursor line with the following line."
+  (eat--tests-with-term '(:width 14 :height 6)
+    (output "\e[6;20H\eM\e[1J")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("" "" "" "" "" "")
+                 :cursor '(5 . 14))))
+
+(ert-deftest eat-test-wrap-below-scroll-region ()
+  "Test automatic margin with the cursor below the scroll region.
+
+At the bottom of the display below the scroll region, wrapping must
+stay on the same line, going back to column one, without scrolling
+and without splitting multi-column characters."
+  (eat--tests-with-term '(:width 5 :height 4)
+    (output "\e[1;3r\e[4;2H" "漢字テスト")
+    (eat--tests-check-consistency (terminal))
+    (should-term :display '("" "" "" " ト ス")
+                 :cursor '(4 . 3))))
+
+(ert-deftest eat-test-write-wide-char-auto-margin-off ()
+  "Test writing wide characters at the right edge without auto margin.
+
+Overwriting the last column must not leave partial multi-column
+characters or orphaned padding behind."
+  (eat--tests-with-term '(:width 10 :height 2)
+    (output "深圳" "\e[?7l" "\e[5b")
+    (eat--tests-check-consistency (terminal)))
+  (eat--tests-with-term '(:width 14 :height 5)
+    (output "\t" "\e[?7l" "漢字テスト")
+    (eat--tests-check-consistency (terminal))))
+
+(ert-deftest eat-test-resize-rewrap-wide-chars ()
+  "Test resizing with lines containing multi-column characters.
+
+Re-breaking long lines must never split a multi-column character
+between two lines, and the display beginning must stay at the
+beginning of a line after long lines are joined back."
+  (eat--tests-with-term '(:width 10 :height 6)
+    (output "漢字テスト")
+    (eat-term-resize (terminal) 5 3)
+    (eat--tests-check-consistency (terminal))
+    (eat-term-resize (terminal) 7 6)
+    (eat--tests-check-consistency (terminal))
+    (eat-term-resize (terminal) 10 6)
+    (eat--tests-check-consistency (terminal))
+    ;; Note: don't check the cursor here; its column across a chain
+    ;; of resizes is unspecified (shrinking clamps it).
+    (eat--tests-compare-display (terminal)
+                                '(" 漢 字 テ ス ト"))))
+
+(ert-deftest eat-test-resize-display-begin-at-bol ()
+  "Test that resizing keeps the display beginning at a line beginning."
+  (eat--tests-with-term '(:width 12 :height 4)
+    (eat-term-resize (terminal) 10 5)
+    (output "\e[6;20H\e[3;10H")
+    (eat-term-resize (terminal) 6 4)
+    (eat--tests-check-consistency (terminal))
+    (eat-term-resize (terminal) 14 5)
+    (eat--tests-check-consistency (terminal))
+    (output "\e[9L")
+    (eat--tests-check-consistency (terminal))))
+
+(ert-deftest eat-test-resize-alt-display-clamps-cursor ()
+  "Test that shrinking the alternative display clamps the cursor."
+  (eat--tests-with-term '(:width 7 :height 2)
+    (output "\e[?1047h\e[20G")
+    (should-term :cursor '(1 . 7))
+    (eat-term-resize (terminal) 4 3)
+    (eat--tests-check-consistency (terminal))
+    (should-term :cursor '(1 . 4)))
+  ;; Shrinking the width must also work when the cursor coordinates
+  ;; are only implicitly out of range (empty lines).
+  (eat--tests-with-term '(:width 13 :height 3)
+    (output "\e[?1047h\e[9T")
+    (eat-term-resize (terminal) 8 5)
+    (eat--tests-check-consistency (terminal))))
+
+
 ;;;;; Input Event Tests.
 
 (ert-deftest eat-test-input-character ()

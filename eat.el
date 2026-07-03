@@ -400,14 +400,17 @@ Treat LINE FEED (?\\n) as the line delimiter."
   ;; TODO: Comment.
   (setq n (or n 0))
   (cond ((>= n 0)
-         (let ((moved -1))
-           (while (and (or (= moved -1)
-                           (< (point) (point-max)))
-                       (< moved n))
-             (cl-incf moved)
-             (and (search-forward "\n" nil 'move)
-                  (= moved n)
-                  (goto-char (match-beginning 0))))
+         ;; Cross N newlines forward, counting the lines moved.
+         (let ((moved 0))
+           (while (and (< moved n)
+                       (search-forward "\n" nil 'move))
+             (cl-incf moved))
+           ;; We are at the beginning of the target line (or at
+           ;; `point-max' if the buffer ran out of lines; that's the
+           ;; end of the last line, and MOVED counts the lines
+           ;; actually crossed).  Move to the end of the line.
+           (when (search-forward "\n" nil 'move)
+             (goto-char (match-beginning 0)))
            moved))
         ((< n 0)
          (let ((moved 0))
@@ -536,6 +539,22 @@ For example: when THRESHOLD is 3, \"*foobarbaz\" is converted to
     (while (and loop (< (point) (point-max)))
       ;; Go to the threshold column.
       (eat--t-goto-col threshold)
+      ;; Never break a line between a multi-column character and its
+      ;; invisible padding; break before the padding instead.
+      (when (and (> (eat--t-move-before-to-safe) 0)
+                 (or (bobp) (eq (char-before) ?\n)))
+        ;; The multi-column character is at the very beginning of the
+        ;; line, so it can never fit within THRESHOLD columns.
+        ;; Replace it with spaces (like `eat--t-write' does when a
+        ;; wide character can't fit).
+        (let* ((start (point))
+               (end (min (+ start (or (get-text-property
+                                       start 'eat--t-char-width)
+                                      1))
+                         (car (eat--t-eol)))))
+          (delete-region start end)
+          (eat--t-repeated-insert ?\s (- end start)))
+        (eat--t-goto-col threshold))
       ;; Are we at the end of line?
       (if (eq (char-after) ?\n)
           ;; We are already at the end of line, so move to the next
@@ -818,40 +837,62 @@ accordingly."
       ;; Try to not point relative to the text.
       (save-excursion
         (goto-char (eat--t-disp-begin disp))
-        ;; Move to the beginning of scroll region.
-        (eat--t-goto-bol (1- scroll-begin))
-        ;; If the first line on display isn't in scroll region or
-        ;; if this is the alternative display, delete text.
-        (if (or (eat--t-term-main-display eat--t-term)
-                (> scroll-begin 1))
-            (delete-region (point) (car (eat--t-bol n)))
-          ;; Otherwise, send the text to the scrollback area by
-          ;; advancing the display beginning marker.
-          (eat--t-goto-bol n)
-          ;; Make sure we're at the beginning of a line, because we
-          ;; might be at `point-max'.
-          (unless (or (= (point) (point-min))
-                      (= (char-before) ?\n))
-            (insert ?\n))
-          (set-marker (eat--t-disp-begin disp) (point)))
-        ;; Is the last line on display in scroll region?
-        (when (< scroll-end (eat--t-disp-width disp))
-          ;; No, it isn't.
-          ;; Go to the end of scroll region (before deleting or moving
-          ;; texts).
-          (eat--t-goto-bol (- (1+ (- scroll-end scroll-begin)) n))
-          ;; If there is anything after the scroll region, insert
-          ;; newlines to keep that text unmoved.
-          (when (< (point) (point-max))
-            (eat--t-repeated-insert ?\n n))))
+        ;; Move to the beginning of scroll region.  When the buffer
+        ;; doesn't have that many lines (the scroll region is all
+        ;; implicit blank lines), there is no text to scroll, so skip
+        ;; all the text manipulation (moving backward relative to
+        ;; where `eat--t-goto-bol' stopped could take us above the
+        ;; scroll region and corrupt the display).
+        (when (= (eat--t-goto-bol (1- scroll-begin))
+                 (1- scroll-begin))
+          ;; Scrolled-out lines are moved to the scrollback area only
+          ;; when the scroll region covers the whole display and this
+          ;; is the main display; otherwise they are simply deleted.
+          (if (or (eat--t-term-main-display eat--t-term)
+                  (> scroll-begin 1)
+                  (< scroll-end (eat--t-disp-height disp)))
+              (delete-region (point) (car (eat--t-bol n)))
+            ;; Otherwise, send the text to the scrollback area by
+            ;; advancing the display beginning marker.
+            (eat--t-goto-bol n)
+            ;; Make sure we're at the beginning of a line, because we
+            ;; might be at `point-max'.
+            (unless (or (= (point) (point-min))
+                        (= (char-before) ?\n))
+              (insert ?\n))
+            (set-marker (eat--t-disp-begin disp) (point)))
+          ;; Is the last line on display in scroll region?
+          (when (< scroll-end (eat--t-disp-height disp))
+            ;; No, it isn't.
+            ;; Go to the end of scroll region (before deleting or
+            ;; moving texts).  If the buffer runs out of lines before
+            ;; that (`eat--t-goto-bol' can't move the full distance),
+            ;; there is no text below the scroll region to keep
+            ;; unmoved.
+            (when (and (= (eat--t-goto-bol
+                           (- (1+ (- scroll-end scroll-begin)) n))
+                          (- (1+ (- scroll-end scroll-begin)) n))
+                       ;; If there is anything after the scroll
+                       ;; region, insert newlines to keep that text
+                       ;; unmoved.
+                       (< (point) (point-max)))
+              (eat--t-repeated-insert ?\n n)))))
       ;; Recalculate point if needed.
       (let* ((cursor (eat--t-disp-cursor disp))
-             (recalc-point
-              (<= scroll-begin (eat--t-cur-y cursor) scroll-end)))
-        ;; If recalc-point is non-nil, and AS-SIDE-EFFECT is non-nil,
-        ;; update cursor position so that it is unmoved relative to
-        ;; surrounding text and reconsider point recalculation.
-        (when (and recalc-point as-side-effect)
+             (in-region (<= scroll-begin (eat--t-cur-y cursor)
+                            scroll-end))
+             ;; The text the cursor is on may have moved (when the
+             ;; cursor is inside the scroll region), or newlines may
+             ;; have been inserted at the cursor position (when the
+             ;; cursor is below the scroll region), so the point
+             ;; needs to be recalculated unless the cursor is above
+             ;; the scroll region.
+             (recalc-point (<= scroll-begin (eat--t-cur-y cursor))))
+        ;; If the cursor is in the scroll region and AS-SIDE-EFFECT
+        ;; is non-nil, update cursor position so that it is unmoved
+        ;; relative to surrounding text and reconsider point
+        ;; recalculation.
+        (when (and in-region as-side-effect)
           (setq recalc-point (< (- (eat--t-cur-y cursor) n)
                                 scroll-begin))
           (setf (eat--t-cur-y cursor)
@@ -1123,8 +1164,19 @@ character to actually show.")
            ;; region.
            (when (= (eat--t-cur-y cursor) scroll-end)
              (eat--t-scroll-up 1 'as-side-effect))
-           (if (= (eat--t-cur-y cursor) scroll-end)
-               (eat--t-carriage-return)
+           (if (or (= (eat--t-cur-y cursor) scroll-end)
+                   ;; Below the scroll region at the bottom of the
+                   ;; display the cursor can't move down any further.
+                   (>= (eat--t-cur-y cursor)
+                       (eat--t-disp-height disp)))
+               ;; Go to column one of the same line.  Point may have
+               ;; been moved (e.g. to the end of line in preparation
+               ;; for wrapping), desynchronizing it from the cursor
+               ;; column, so move to the beginning of line absolutely
+               ;; instead of relatively to the cursor column.
+               (progn
+                 (eat--t-goto-bol)
+                 (setf (eat--t-cur-x cursor) 1))
              (if (= (point) (point-max))
                  (insert #("\n" 0 1 (eat--t-wrap-line t)))
                (put-text-property (point) (1+ (point))
@@ -1155,7 +1207,13 @@ character to actually show.")
            ;; column (the deferred wrap is resolved later).
            (when (> (eat--t-cur-x cursor) (eat--t-disp-width disp))
              (if (not (eat--t-term-auto-margin eat--t-term))
-                 (eat--t-cur-left 1)
+                 (progn
+                   (eat--t-cur-left 1)
+                   ;; Backing up may have left point between a
+                   ;; multi-column character and its invisible
+                   ;; padding; make the position safe again before
+                   ;; anything is written there.
+                   (eat--t-make-pos-safe))
                (when (< inserted-till end)
                  (wrap-to-next-line))))))
     (while (< inserted-till end)
@@ -1266,7 +1324,12 @@ character to actually show.")
                ;; column first, then retry; the character either fits
                ;; or is handled by the branch below.
                ((> (eat--t-cur-x cursor) (eat--t-disp-width disp))
-                (eat--t-cur-left 1))
+                (eat--t-cur-left 1)
+                ;; Backing up may have left point between a
+                ;; multi-column character and its invisible padding;
+                ;; make the position safe again before anything is
+                ;; written there.
+                (eat--t-make-pos-safe))
                ;; Automatic margin disabled and a wide character can
                ;; never fit in the single remaining column: drop it,
                ;; writing a space in its place like XTerm does.
@@ -1312,15 +1375,16 @@ N default to 1."
   "Go to the next line preserving column, scrolling if necessary."
   (let* ((disp (eat--t-term-display eat--t-term))
          (cursor (eat--t-disp-cursor disp))
-         (scroll-end (eat--t-term-scroll-end eat--t-term))
-         ;; Are we inside scroll region?
-         (in-scroll-region (<= (eat--t-cur-y cursor) scroll-end)))
-    ;; If this is the last line (of the scroll region or the display),
-    ;; scroll up, otherwise move cursor downward.
-    (if (= (if in-scroll-region scroll-end (eat--t-disp-height disp))
-           (eat--t-cur-y cursor))
-        (eat--t-scroll-up 1)
-      (eat--t-cur-down 1))))
+         (scroll-end (eat--t-term-scroll-end eat--t-term)))
+    (cond
+     ;; At the bottom of the scroll region: scroll up.
+     ((= (eat--t-cur-y cursor) scroll-end)
+      (eat--t-scroll-up 1))
+     ;; Otherwise move downward, unless the cursor is below the
+     ;; scroll region at the bottom of the display, where it can't
+     ;; move any further and nothing is scrolled.
+     ((< (eat--t-cur-y cursor) (eat--t-disp-height disp))
+      (eat--t-cur-down 1)))))
 
 (defun eat--t-carriage-return ()
   "Go to column one."
@@ -1331,69 +1395,62 @@ N default to 1."
   (let* ((disp (eat--t-term-display eat--t-term))
          (cursor (eat--t-disp-cursor disp))
          (scroll-end (eat--t-term-scroll-end eat--t-term))
-         ;; Are we inside scroll region?
-         (in-scroll-region (<= (eat--t-cur-y cursor) scroll-end)))
-    ;; If we are at the very end of the terminal, we might have some
-    ;; optimizations.
-    (if (= (point) (point-max))
-        ;; If the cursor is above the last line of the scroll region
-        ;; (or the display, if we are outside the scroll region), we
-        ;; can simply insert a newline and update the cursor position.
-        (if (/= (if in-scroll-region
-                    scroll-end
-                  (eat--t-disp-height disp))
-                (eat--t-cur-y cursor))
-            (progn
-              (insert ?\n)
-              (setf (eat--t-cur-x cursor) 1)
-              (cl-incf (eat--t-cur-y cursor)))
-          ;; This is the last line.  We need to scroll up.
-          (eat--t-scroll-up 1 'as-side-effect)
-          ;; If we're still at the last line (only happens when the
-          ;; display has only a single line), go to column one of it.
-          (if (= (if in-scroll-region
-                     scroll-end
-                   (eat--t-disp-height disp))
-                 (eat--t-cur-y cursor))
-              (eat--t-carriage-return)
-            ;; If we are somehow moved from the end of terminal,
-            ;; `eat--t-beg-of-next-line' is the best option.
-            (if (/= (point) (point-max))
-                (eat--t-beg-of-next-line 1)
-              ;; We are still at the end!  We can can simply insert a
-              ;; newline and update the cursor position.
-              (insert ?\n)
-              (setf (eat--t-cur-x cursor) 1)
-              (cl-incf (eat--t-cur-y cursor)))))
-      ;; We are not at the end of terminal.  But we still have a last
-      ;; chance.  `eat--t-beg-of-next-line' is usually faster than
-      ;; `eat--t-carriage-return' followed by `eat--t-index', so if
-      ;; there is at least a single line (in the scroll region, if the
-      ;; cursor in the scroll region, otherwise in the display)
-      ;; underneath the cursor, we can use `eat--t-beg-of-next-line'.
-      (if (/= (if in-scroll-region
-                  scroll-end
-                (eat--t-disp-height disp))
-              (eat--t-cur-y cursor))
-          (eat--t-beg-of-next-line 1)
-        ;; We don't have any other option, so we must use the most
-        ;; time-expensive option.
-        (eat--t-carriage-return)
-        (eat--t-index)))))
+         ;; Should the scroll region be scrolled?  Only when the
+         ;; cursor is exactly at the bottom of it.
+         (at-scroll-end (= (eat--t-cur-y cursor) scroll-end))
+         ;; Can the cursor move downward?  Not when it is at the
+         ;; bottom of the scroll region (the region scrolls instead),
+         ;; and not when it is below the scroll region at the bottom
+         ;; of the display.
+         (can-move-down (and (not at-scroll-end)
+                             (< (eat--t-cur-y cursor)
+                                (eat--t-disp-height disp)))))
+    (cond
+     (can-move-down
+      ;; If we are at the very end of the terminal, we can simply
+      ;; insert a newline and update the cursor position.
+      (if (= (point) (point-max))
+          (progn
+            (insert ?\n)
+            (setf (eat--t-cur-x cursor) 1)
+            (cl-incf (eat--t-cur-y cursor)))
+        (eat--t-beg-of-next-line 1)))
+     ((not at-scroll-end)
+      ;; The cursor is below the scroll region at the bottom of the
+      ;; display; it can't move down and nothing is scrolled, so just
+      ;; go to column one.
+      (eat--t-carriage-return))
+     (t
+      ;; The cursor is at the bottom of the scroll region, scroll it.
+      (eat--t-scroll-up 1 'as-side-effect)
+      ;; If we're still at the last line of the scroll region (only
+      ;; happens when the scroll region has a single line), go to
+      ;; column one of it.
+      (if (= (eat--t-cur-y cursor) scroll-end)
+          (eat--t-carriage-return)
+        ;; Otherwise move to the beginning of the next line.
+        (if (/= (point) (point-max))
+            (eat--t-beg-of-next-line 1)
+          ;; We are at the end of terminal, so we can simply insert a
+          ;; newline and update the cursor position.
+          (insert ?\n)
+          (setf (eat--t-cur-x cursor) 1)
+          (cl-incf (eat--t-cur-y cursor))))))))
 
 (defun eat--t-reverse-index ()
   "Go to the previous line preserving column, scrolling if needed."
   (let* ((cursor (eat--t-disp-cursor
                   (eat--t-term-display eat--t-term)))
-         (scroll-begin (eat--t-term-scroll-begin eat--t-term))
-         ;; Are we in the scroll region?
-         (in-scroll-region (<= scroll-begin (eat--t-cur-y cursor))))
-    ;; If this is the first line (of the scroll region or the
-    ;; display), scroll down, otherwise move cursor upward.
-    (if (= (if in-scroll-region scroll-begin 1)
-           (eat--t-cur-y cursor))
-        (eat--t-scroll-down 1)
-      (eat--t-cur-up 1))))
+         (scroll-begin (eat--t-term-scroll-begin eat--t-term)))
+    (cond
+     ;; At the top of the scroll region: scroll down.
+     ((= (eat--t-cur-y cursor) scroll-begin)
+      (eat--t-scroll-down 1))
+     ;; Otherwise move upward, unless the cursor is above the scroll
+     ;; region at the top of the display, where it can't move any
+     ;; further and nothing is scrolled.
+     ((> (eat--t-cur-y cursor) 1)
+      (eat--t-cur-up 1)))))
 
 (defun eat--t-bell ()
   "Ring the bell."
@@ -1443,6 +1500,10 @@ N defaults to 0.  When N is 0, erase cursor to end of line.  When N is
   (let ((face (eat--t-term-face eat--t-term)))
     (pcase-exhaustive n
       ((or 0 'nil (pred (< 2)))
+       ;; If the position isn't safe, replace the multi-column
+       ;; character with spaces to make it safe, so that we don't
+       ;; leave an orphaned part of it before the cursor.
+       (eat--t-make-pos-safe)
        ;; Delete cursor position (inclusive) to end of line.
        (delete-region (point) (car (eat--t-eol)))
        ;; If the SGR background attribute is set, we need to fill the
@@ -1457,31 +1518,38 @@ N defaults to 0.  When N is 0, erase cursor to end of line.  When N is
               (and (eat--t-face-bg face)
                    (eat--t-face-face face)))))))
       (1
-       ;; Whether the cursor is past the end of line (e.g. at the
-       ;; deferred wrap position with automatic margin enabled).  In
-       ;; that case there is no character under the cursor to erase.
-       (let* ((at-eol (or (= (point) (point-max))
-                          (= (char-after) ?\n)))
-              ;; End of the region to erase: cursor position
-              ;; (inclusive) or the cursor position itself when it is
-              ;; past the end of line.
-              (erase-end (if at-eol (point) (1+ (point))))
+       ;; If the position isn't safe, replace the multi-column
+       ;; character with spaces to make it safe.
+       (eat--t-make-pos-safe)
+       ;; The number of buffer characters to erase at the cursor
+       ;; position: zero when the cursor is past the end of line
+       ;; (e.g. at the deferred wrap position with automatic margin
+       ;; enabled), the full width of the multi-column character when
+       ;; the cursor is on one (erasing only its first buffer
+       ;; character would leave the character without its invisible
+       ;; padding), and one otherwise.
+       (let* ((del (if (or (= (point) (point-max))
+                           (= (char-after) ?\n))
+                       0
+                     (min (or (get-text-property
+                               (point) 'eat--t-char-width)
+                              1)
+                          (- (car (eat--t-eol)) (point)))))
+              ;; End of the region to erase.
+              (erase-end (+ (point) del))
               ;; Number of columns being erased; re-fill with exactly
               ;; this many spaces so that the line width is preserved.
               (count (- erase-end (car (eat--t-bol)))))
-         ;; Delete beginning of line to cursor position (inclusive).
+         ;; Delete beginning of line to the end of the erased region.
          (delete-region (car (eat--t-bol)) erase-end)
          ;; Fill the region with spaces, use SGR background attribute
          ;; if set.
          (eat--t-repeated-insert ?\s count
                                  (and (eat--t-face-bg face)
                                       (eat--t-face-face face)))
-         ;; If we erased the character at the cursor position, then
-         ;; after filling with spaces we are off by one column; so
-         ;; move a column backward.  When the cursor was past the end
-         ;; of line, no such character was erased, so don't move.
-         (unless at-eol
-           (backward-char))))
+         ;; After filling with spaces we are off by DEL columns; move
+         ;; backward to keep the cursor at the same column.
+         (backward-char del)))
       (2
        ;; Delete whole line.
        (delete-region (car (eat--t-bol)) (car (eat--t-eol)))
@@ -1513,6 +1581,10 @@ to (1, 1).  When N is 3, also erase the scrollback."
   (let ((face (eat--t-term-face eat--t-term)))
     (pcase-exhaustive n
       ((or 0 'nil (pred (< 3)))
+       ;; If the position isn't safe, replace the multi-column
+       ;; character with spaces to make it safe, so that we don't
+       ;; leave an orphaned part of it before the cursor.
+       (eat--t-make-pos-safe)
        ;; Delete from cursor position (inclusive) to end of terminal.
        (delete-region (point) (point-max))
        ;; If the SGR background attribute is set, we need to fill the
@@ -1537,15 +1609,30 @@ to (1, 1).  When N is 3, also erase the scrollback."
            ;; Restore position.
            (goto-char pos))))
       (1
+       ;; If the position isn't safe, replace the multi-column
+       ;; character with spaces to make it safe.
+       (eat--t-make-pos-safe)
        (let* ((disp (eat--t-term-display eat--t-term))
               (cursor (eat--t-disp-cursor disp))
               (y (eat--t-cur-y cursor))
               (x (eat--t-cur-x cursor))
-              ;; Should we erase including the cursor position?
-              (incl-point (/= (point) (point-max))))
+              ;; The number of buffer characters to erase at the
+              ;; cursor position: zero when the cursor is past the
+              ;; end of line (deleting the following newline would
+              ;; join the current line with the next one), the full
+              ;; width of the multi-column character when the cursor
+              ;; is on one (erasing only its first buffer character
+              ;; would leave the character without its invisible
+              ;; padding), and one otherwise.
+              (del (if (or (= (point) (point-max))
+                           (= (char-after) ?\n))
+                       0
+                     (min (or (get-text-property
+                               (point) 'eat--t-char-width)
+                              1)
+                          (- (car (eat--t-eol)) (point))))))
          ;; Delete the region to be erased.
-         (delete-region (eat--t-disp-begin disp)
-                        (if incl-point (1+ (point)) (point)))
+         (delete-region (eat--t-disp-begin disp) (+ (point) del))
          ;; If the SGR background attribute isn't set, insert
          ;; newlines, otherwise fill the erased area above the current
          ;; line with background color.
@@ -1557,11 +1644,11 @@ to (1, 1).  When N is 3, also erase the scrollback."
              (insert ?\n)))
          ;; Fill the current line to keep the cursor unmoved.  Use
          ;; background if the corresponding SGR attribute is set.
-         (eat--t-repeated-insert ?\s x (and (eat--t-face-bg face)
-                                            (eat--t-face-face face)))
-         ;; We are off by one column; so move a column backward.
-         (when incl-point
-           (backward-char))))
+         (eat--t-repeated-insert ?\s (+ (1- x) del)
+                                 (and (eat--t-face-bg face)
+                                      (eat--t-face-face face)))
+         ;; We are off by DEL columns; so move backward.
+         (backward-char del)))
       ((or 2 3)
        ;; Move to the display beginning.
        (eat--t-goto 1 1)
@@ -1818,9 +1905,8 @@ position."
          (scroll-begin (eat--t-term-scroll-begin eat--t-term))
          (scroll-end (eat--t-term-scroll-end eat--t-term)))
     ;; N should be positive and shouldn't exceed the number of lines
-    ;; below cursor position and inside current scroll region.
-    (setq n (min (- (1+ (- scroll-end scroll-begin))
-                    (1- (eat--t-cur-y cursor)))
+    ;; from the cursor position to the end of the scroll region.
+    (setq n (min (1+ (- scroll-end (eat--t-cur-y cursor)))
                  (max (or n 1) 1)))
     ;; Make sure we are in the scroll region and N is positive, return
     ;; on failure.
@@ -1870,11 +1956,9 @@ position."
          (x (eat--t-cur-x cursor))
          (scroll-begin (eat--t-term-scroll-begin eat--t-term))
          (scroll-end (eat--t-term-scroll-end eat--t-term)))
-    ;; N should be positive and shouldn't exceed the number of
-    ;; lines below cursor position and inside current scroll
-    ;; region.
-    (setq n (min (- (1+ (- scroll-end scroll-begin))
-                    (1- (eat--t-cur-y cursor)))
+    ;; N should be positive and shouldn't exceed the number of lines
+    ;; from the cursor position to the end of the scroll region.
+    (setq n (min (1+ (- scroll-end (eat--t-cur-y cursor)))
                  (max (or n 1) 1)))
     ;; Make sure we are in the scroll region and N is positive, return
     ;; on failure.
@@ -2773,16 +2857,23 @@ FORMAT is the format of parameters in output.  N should be zero."
             (let ((l 0))
               (while (and (< l height) (not (eobp)))
                 (eat--t-col-motion width)
+                ;; Don't cut a multi-column character in half; move
+                ;; before it so it is deleted completely.
+                (eat--t-move-before-to-safe)
                 (delete-region (point) (car (eat--t-eol)))
                 (unless (eobp)
                   (if (< (1+ l) height)
                       (forward-char)
-                    (delete-region (point) (point-max))
-                    (let ((y (eat--t-cur-y cursor))
-                          (x (eat--t-cur-x cursor)))
-                      (eat--t-goto 1 1)
-                      (eat--t-goto y x))))
-                (cl-incf l))))
+                    (delete-region (point) (point-max))))
+                (cl-incf l)))
+            ;; The cursor may have gone out of the display, and the
+            ;; loop above may have left point far away from it.
+            ;; Clamp the cursor coordinates to the new display size
+            ;; and place point at the cursor.
+            (let ((y (min (eat--t-cur-y cursor) height))
+                  (x (min (eat--t-cur-x cursor) width)))
+              (eat--t-goto 1 1)
+              (eat--t-goto y x)))
         ;; REVIEW: This works, but it is very simple.  Most
         ;; terminals have more sophisticated mechanisms to do this.
         ;; It would be nice thing have them here.
@@ -2795,6 +2886,11 @@ FORMAT is the format of parameters in output.  N should be zero."
         ;; Join all long lines.
         (while (not (eobp))
           (eat--t-join-long-line))
+        ;; Joining might have deleted the newline immediately before
+        ;; the display beginning, leaving the marker in the middle of
+        ;; a line; move it back to the beginning of its line.
+        (goto-char (eat--t-disp-begin disp))
+        (set-marker (eat--t-disp-begin disp) (car (eat--t-bol)))
         ;; Go to display beginning again and break long lines.
         (goto-char (eat--t-disp-begin disp))
         (while (not (eobp))

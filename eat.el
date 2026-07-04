@@ -366,25 +366,14 @@ that point.
 Return the number of lines moved.
 
 Treat LINE FEED (?\\n) as the line delimiter."
-  ;; TODO: Comment.
+  ;; `forward-line' does all the work, except that it counts moving
+  ;; to the end of a buffer that doesn't end with a newline as a
+  ;; successfully moved line; adjust the count for that case.
   (setq n (or n 0))
-  (cond ((> n 0)
-         (let ((moved 0))
-           (while (and (< (point) (point-max))
-                       (< moved n))
-             (and (search-forward "\n" nil 'move)
-                  (cl-incf moved)))
-           moved))
-        ((<= n 0)
-         (let ((moved 1))
-           (while (and (or (= moved 1)
-                           (< (point-min) (point)))
-                       (< n moved))
-             (cl-decf moved)
-             (and (search-backward "\n" nil 'move)
-                  (= moved n)
-                  (goto-char (match-end 0))))
-           moved))))
+  (let ((moved (- n (forward-line n))))
+    (if (and (> moved 0) (eobp) (not (bolp)))
+        (1- moved)
+      moved)))
 
 (defun eat--t-goto-eol (&optional n)
   "Go to the end of current line.
@@ -397,28 +386,14 @@ that point.
 Return the number of lines moved.
 
 Treat LINE FEED (?\\n) as the line delimiter."
-  ;; TODO: Comment.
   (setq n (or n 0))
-  (cond ((>= n 0)
-         ;; Cross N newlines forward, counting the lines moved.
-         (let ((moved 0))
-           (while (and (< moved n)
-                       (search-forward "\n" nil 'move))
-             (cl-incf moved))
-           ;; We are at the beginning of the target line (or at
-           ;; `point-max' if the buffer ran out of lines; that's the
-           ;; end of the last line, and MOVED counts the lines
-           ;; actually crossed).  Move to the end of the line.
-           (when (search-forward "\n" nil 'move)
-             (goto-char (match-beginning 0)))
-           moved))
-        ((< n 0)
-         (let ((moved 0))
-           (while (and (< (point-min) (point))
-                       (< n moved))
-             (and (search-backward "\n" nil 'move)
-                  (cl-decf moved)))
-           moved))))
+  (let ((moved (eat--t-goto-bol n)))
+    ;; When moving backward beyond the accessible portion, stay at
+    ;; `point-min' (where `eat--t-goto-bol' already left us) instead
+    ;; of moving to the end of the first line.
+    (unless (and (< n 0) (/= moved n))
+      (goto-char (pos-eol)))
+    moved))
 
 (defun eat--t-bol (&optional n)
   "Return the beginning of current line.
@@ -433,11 +408,14 @@ is number of lines that point is away from current line.
 Treat LINE FEED (?\\n) as the line delimiter."
   ;; Move to the beginning of line, record the point, and return that
   ;; point and the distance of that point from current line in lines.
-  (save-excursion
-    ;; `let' is neccessary, we need to evaluate (point) after going to
-    ;; `(eat--t-goto-bol N)'.
-    (let ((moved (eat--t-goto-bol n)))
-      (cons (point) moved))))
+  (if (or (not n) (zerop n))
+      ;; Fast path: the beginning of the current line.
+      (cons (pos-bol) 0)
+    (save-excursion
+      ;; `let' is neccessary, we need to evaluate (point) after going
+      ;; to `(eat--t-goto-bol N)'.
+      (let ((moved (eat--t-goto-bol n)))
+        (cons (point) moved)))))
 
 (defun eat--t-eol (&optional n)
   "Return the end of current line.
@@ -452,11 +430,14 @@ point is away from current line.
 Treat LINE FEED (?\\n) as the line delimiter."
   ;; Move to the beginning of line, record the point, and return that
   ;; point and the distance of that point from current line in lines.
-  (save-excursion
-    ;; `let' is neccessary, we need to evaluate (point) after going to
-    ;; (eat--t-goto-eol N).
-    (let ((moved (eat--t-goto-eol n)))
-      (cons (point) moved))))
+  (if (or (not n) (zerop n))
+      ;; Fast path: the end of the current line.
+      (cons (pos-eol) 0)
+    (save-excursion
+      ;; `let' is neccessary, we need to evaluate (point) after going
+      ;; to (eat--t-goto-eol N).
+      (let ((moved (eat--t-goto-eol n)))
+        (cons (point) moved)))))
 
 (defun eat--t-col-motion (n)
   "Move to Nth next column.
@@ -472,13 +453,9 @@ Assume all characters occupy a single column."
   (let ((start-pos (point)))
     ;; Move to the new position.
     (cond ((> n 0)
-           (let ((eol (car (eat--t-eol)))
-                 (pos (+ (point) n)))
-             (goto-char (min pos eol))))
+           (goto-char (min (+ (point) n) (pos-eol))))
           ((< n 0)
-           (let ((bol (car (eat--t-bol)))
-                 (pos (+ (point) n)))
-             (goto-char (max pos bol)))))
+           (goto-char (max (+ (point) n) (pos-bol)))))
     ;; Return the distance from the previous position.
     (- (point) start-pos)))
 
@@ -490,7 +467,7 @@ Assume all characters occupy a single column."
   ;; subtraction should work.  For multi-column characters, we add
   ;; extra invisible spaces before the character to make it occupy as
   ;; many character is its width.
-  (- (point) (car (eat--t-bol))))
+  (- (point) (pos-bol)))
 
 (defun eat--t-goto-col (n)
   "Go to column N.
@@ -947,23 +924,20 @@ of range, place cursor at the edge of display."
         (goto-char (eat--t-disp-begin disp))
         (1value (setf (eat--t-cur-y cursor) 1
                       (eat--t-cur-x cursor) 1)))
-    ;; Move to column one, go to Yth line and move to Xth column.
-    ;; REVIEW: We move relative to cursor position, which faster for
-    ;; positions near the point (usually the case), but slower for
-    ;; positions far away from the point.  There are only two cursor
-    ;; positions whose exact position is known beforehand, the cursor
-    ;; (whose position is (point)) and (1, 1) (the display beginning).
-    ;; There are almost always some points which are at more distance
-    ;; from current position than from the display beginning (the only
-    ;; exception is when the cursor is at the display beginning).  So
-    ;; first moving to the display beginning and then moving to those
-    ;; point will be faster than moving from cursor (except a tiny
-    ;; (perhaps negligible) overhead of `goto-char').  What we don't
-    ;; have is a formula the calculate the distance between two
-    ;; positions.
-    (eat--t-cur-horizontal-abs 1)
-    (eat--t-cur-vertical-abs y)
-    (eat--t-cur-horizontal-abs x)))
+    (let* ((disp (eat--t-term-display eat--t-term))
+           (cursor (eat--t-disp-cursor disp)))
+      (if (eql (or y 1) (eat--t-cur-y cursor))
+          ;; We are already on the target line, so only move
+          ;; horizontally.  This is a common case with full-screen
+          ;; applications addressing the cursor repeatedly.
+          (eat--t-cur-horizontal-abs x)
+        ;; Move to column one absolutely (point is always in sync
+        ;; with the cursor column, so the beginning of line is the
+        ;; first column), then go to Yth line and move to Xth column.
+        (eat--t-goto-bol)
+        (setf (eat--t-cur-x cursor) 1)
+        (eat--t-cur-vertical-abs y)
+        (eat--t-cur-horizontal-abs x)))))
 
 (defun eat--t-enable-auto-margin ()
   "Enable automatic margin."
@@ -1145,11 +1119,14 @@ character to actually show.")
          (inserted-till beg))
     (cl-assert charset)
     ;; Find all the multi-column wide characters in ST; hopefully it
-    ;; won't slow down showing plain ASCII.
-    (setq multi-col-char-indices
-          (cl-loop for i from beg to (1- end)
-                   when (/= (char-width (aref str i)) 1)
-                   collect (cons i (char-width (aref str i)))))
+    ;; won't slow down showing plain ASCII.  `string-width' quickly
+    ;; tells us whether there is any character whose width isn't one;
+    ;; only then scan the string character by character.
+    (unless (= (string-width str beg end) (- end beg))
+      (setq multi-col-char-indices
+            (cl-loop for i from beg to (1- end)
+                     when (/= (char-width (aref str i)) 1)
+                     collect (cons i (char-width (aref str i))))))
     ;; If the position isn't safe, replace the multi-column
     ;; character with spaces to make it safe.
     (eat--t-make-pos-safe)
@@ -1258,11 +1235,14 @@ character to actually show.")
                                (lambda (c)
                                  (string (or (gethash c eat--t-dec-line-drawing-chars) c)))
                                s))))
-                   ;; Add face.
-                   (put-text-property 0 (length s) 'face face s)
-                   (put-text-property
-                    0 (length s) 'font-lock-face face s)
-                   (insert s))
+                   ;; Insert the string and add the face in a single
+                   ;; pass over the inserted region.
+                   (let ((ins-beg (point)))
+                     (insert s)
+                     (when face
+                       (add-text-properties
+                        ins-beg (point)
+                        (list 'face face 'font-lock-face face)))))
                  (setq inserted-till e)
                  (if (or (null next-multi-col)
                          (< (- max wrote) (cdr next-multi-col)))
